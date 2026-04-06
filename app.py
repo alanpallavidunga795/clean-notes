@@ -6,7 +6,12 @@ from datetime import datetime
 app = Flask(__name__)
 
 # Use environment variable (recommended)
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+api_key = os.getenv("OPENAI_API_KEY")
+
+if not api_key:
+    raise ValueError("OPENAI_API_KEY is not set in environment variables")
+
+client = OpenAI(api_key=api_key)
 
 # ===== PROMPT TEMPLATE =====
 def build_prompt(user_input):
@@ -100,7 +105,10 @@ def home():
 @app.route("/generate", methods=["POST"])
 def generate():
     data = request.json
-    user_input = data.get("input")
+    user_input = data.get("input", "")
+
+    if not user_input.strip():
+        return jsonify({"error": "No input provided"}), 400
     user_email = data.get("email", "anonymous")
 
     # (Optional) simple logging (no DB yet)
@@ -111,7 +119,8 @@ def generate():
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": prompt}
+            {"role": "system", "content": "You are a clinical documentation assistant."},
+            {"role": "user", "content": prompt}
         ],
         temperature=0.2
     )
