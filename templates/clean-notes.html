@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CleanNotes&trade;</title>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f5f7fa;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    max-width: 900px;
+    margin: auto;
+    padding: 20px;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+textarea {
+    width: 100%;
+    height: 150px;
+    padding: 12px;
+    font-size: 16px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    margin-bottom: 15px;
+    box-sizing: border-box;
+}
+
+input {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    margin-bottom: 15px;
+    box-sizing: border-box;
+}
+
+button {
+    width: 100%;
+    padding: 14px;
+    font-size: 18px;
+    background-color: #047ed4;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #1a5edb;
+}
+
+.output {
+    margin-top: 25px;
+}
+
+.section {
+    background: white;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+}
+
+.copy-btn {
+    margin-top: 10px;
+    font-size: 14px;
+    padding: 8px;
+    cursor: pointer;
+    transition: opacity 0.3s ease;
+}
+
+.copy-btn.fade {
+    opacity: 0.5;
+}
+
+/* Progress button */
+#generateBtn {
+    position: relative;
+    overflow: hidden;
+}
+
+#generateBtn.loading {
+    pointer-events: none;
+    color: transparent;
+}
+
+#generateBtn.loading::after {
+    content: "Generating...";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+}
+
+#generateBtn.loading::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 0%;
+    background-color: rgba(255,255,255,0.25);
+    animation: progressBar 8s linear forwards;
+}
+
+@keyframes progressBar {
+    from { width: 0%; }
+    to { width: 100%; }
+}
+
+.formatted-output {
+    line-height: 1.7;
+    font-size: 16px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+.formatted-output p {
+    margin: 0 0 15px 0;
+}
+
+.formatted-output h3 {
+    color: #024473;
+}
+
+.formatted-output h4 {
+    margin-bottom: 2px;
+}
+
+.formatted-output strong {
+    display: block;
+    margin-top: 10px;
+}
+
+.formatted-output ul {
+    padding-left: 20px;
+}
+
+.formatted-output li {
+    margin-bottom: 5px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+    <h1>
+        Clean<span style="color: #047ed4;">Notes</span>&trade;<br>
+        <span style="font-size: 75%">Clinical Documentation Engine</span>
+    </h1>
+
+    <input id="emailInput" type="email" placeholder="Enter your email (optional)">
+
+    <textarea id="inputText" placeholder="Type or paste your raw clinical notes here..."></textarea>
+
+    <button id="generateBtn" onclick="generateOutput()">
+        Generate CleanNotes™
+    </button>
+
+    <div class="output" id="output"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+<script>
+async function generateOutput() {
+    const btn = document.getElementById("generateBtn");
+    btn.classList.add("loading");
+
+    const input = document.getElementById("inputText").value;
+    const email = document.getElementById("emailInput").value;
+
+    if (!input.trim()) {
+        alert("Please enter clinical notes.");
+        btn.classList.remove("loading");
+        return;
+    }
+
+    try {
+        const response = await fetch("/generate", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                input: input,
+                email: email
+            })
+        });
+
+        const data = await response.json();
+
+        const sections = data.result.split('---');
+
+        document.getElementById("output").innerHTML = `
+            <div class="section">
+                <div class="formatted-output">
+                    ${marked.parse(sections[0] || "")}
+                </div>
+                <button class="copy-btn" onclick="copySection(0, this)">Copy</button>
+            </div>
+
+            <div class="section">
+                <div class="formatted-output">
+                    ${marked.parse(sections[1] || "")}
+                </div>
+                <button class="copy-btn" onclick="copySection(1, this)">Copy</button>
+            </div>
+
+            <div class="section">
+                <div class="formatted-output">
+                    ${marked.parse(sections[2] || "")}
+                </div>
+                <button class="copy-btn" onclick="copySection(2, this)">Copy</button>
+            </div>
+        `;
+
+        document.getElementById("output").dataset.raw = data.result;
+
+    } catch (err) {
+    document.getElementById("output").innerHTML = `
+        <div class="section">
+            <p style="color:red;">Error generating CleanNotes&trade;. Please try again.</p>
+        </div>
+    `;
+    console.error(err);
+} finally {
+        btn.classList.remove("loading");
+    }
+}
+
+window.copySection = async function(index, btn) {
+    const raw = document.getElementById("output").dataset.raw;
+    if (!raw) return;
+
+    const sections = raw.split('---');
+    const selected = (sections[index] || "").trim();
+
+    let html = marked.parse(selected);
+
+// ensure spacing BEFORE BULLET SUMMARY and Missing Information (converted format)
+    // FORCE spacing BEFORE BULLET SUMMARY and Missing Information (robust fix)
+html = html
+    .replace(/<p><strong>BULLET SUMMARY<\/strong><\/p>/gi,
+        '<p>&nbsp;</p><p><strong>BULLET SUMMARY</strong></p>');
+
+    // FIX: handle h4-based "Missing Information" (Markdown ####)
+    html = html.replace(
+    /(<\/ul>)(\s*<h4>\s*Missing Information:?\s*<\/h4>)/gi,
+    '$1<p>&nbsp;</p>$2'
+);
+
+    // CLEANUP FIRST
+    html = html.replace(/(<p>&nbsp;<\/p>\s*){2,}/g, '<p>&nbsp;</p>');
+
+    // HARD RULE: convert ALL headings to controlled paragraph format (removes built-in heading spacing)
+    html = html.replace(/<(h1|h2|h3)>(.*?)<\/\1>/g,
+        '<p><strong>$2</strong></p>');
+
+    // SOAP categories spacing (ONLY one spacer line)
+    html = html.replace(/<p><strong>(Subjective|Objective|Assessment|Plan)<\/strong><\/p>/g,
+        '<p><strong>$1</strong></p><p>&nbsp;</p>');
+
+    // Missing Information spacing (ONLY one spacer line)
+    html = html.replace(/<strong>Missing Information:<\/strong>/g,
+        '<p><strong>Missing Information:</strong></p><p>&nbsp;</p>');
+
+    // spacing AFTER paragraphs (but prevent doubling)
+    html = html.replace(/<\/p>/g, '</p><p>&nbsp;</p>');
+
+    // collapse any accidental duplicates
+    html = html.replace(/(<p>&nbsp;<\/p>\s*){2,}/g, '<p>&nbsp;</p>');
+
+    html = `
+        <html>
+        <head>
+            <meta charset="UTF-8">
+        </head>
+        <body style="font-family:Arial; font-size:14px;">
+            ${html}
+        </body>
+        </html>
+    `;
+
+    const text = selected
+        .replace(/\*\*(.*?)\*\*/g, "$1")
+        .replace(/^\s*[-*]\s+/gm, "• ")
+        .replace(/\n{1,}/g, "\n\n")
+        .trim();
+
+    await navigator.clipboard.write([
+        new ClipboardItem({
+            "text/html": new Blob([html], { type: "text/html" }),
+            "text/plain": new Blob([text], { type: "text/plain" })
+        })
+    ]);
+
+    if (btn) {
+        const original = btn.innerText;
+        btn.innerText = "Copied!";
+        setTimeout(() => {
+    btn.classList.add("fade");
+    btn.innerText = original;
+
+    setTimeout(() => {
+        btn.classList.remove("fade");
+    }, 300);
+}, 1200);
+    }
+};
+</script>
+
+</body>
+</html>
