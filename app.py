@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 from openai import OpenAI
 import os
 from datetime import datetime
@@ -202,6 +202,16 @@ def generate():
 def admin_users():
     if conn is None:
         return "Database not connected"
+
+    auth = request.authorization
+    admin_password = os.getenv("ADMIN_PASSWORD")
+
+    if not auth or auth.password != admin_password:
+        return Response(
+            "Login required",
+            401,
+            {"WWW-Authenticate": 'Basic realm="Login Required"'}
+        )
 
     try:
         with conn.cursor() as cur:
