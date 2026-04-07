@@ -6,8 +6,16 @@ import psycopg2
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-conn = psycopg2.connect(DATABASE_URL)
-conn.autocommit = True
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+conn = None
+
+if DATABASE_URL:
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        conn.autocommit = True
+    except Exception as e:
+        print("Database connection failed:", e)
 
 with conn.cursor() as cur:
     cur.execute("""
@@ -126,15 +134,19 @@ def generate():
         return jsonify({"error": "No input provided"}), 400
     user_email = data.get("email", "anonymous")
 
-    if user_email and user_email != "anonymous":
+    if conn and user_email and user_email != "anonymous":
         try:
             with conn.cursor() as cur:
-                cur.execute(
-                    "INSERT INTO users (email) VALUES (%s);",
-                    (user_email,)
-                )
+                cur.execute("""
+                    INSERT INTO users (email, last_used, request_count)
+                    VALUES (%s, NOW(), 1)
+                    ON CONFLICT (email)
+                    DO UPDATE SET
+                        last_used = NOW(),
+                        request_count = users.request_count + 1;
+                """, (user_email,))
         except Exception as e:
-            print("DB insert error:", e)
+            print("DB error:", e)
 
     # (Optional) simple logging (no DB yet)
     print(f"[{datetime.now()}] Request from: {user_email}")
