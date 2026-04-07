@@ -7,6 +7,7 @@ import psycopg2
 app = Flask(__name__)
 
 # ===== DATABASE SETUP =====
+# ===== DATABASE SETUP =====
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 conn = None
@@ -17,15 +18,15 @@ if DATABASE_URL:
         conn.autocommit = True
 
         with conn.cursor() as cur:
-            # Create table if it doesn't exist
+            # Create base table if not exists
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id SERIAL PRIMARY KEY,
-                    email TEXT UNIQUE
+                    email TEXT
                 );
             """)
 
-            # 🔧 ADD missing columns safely (only if they don't exist)
+            # Add missing columns safely
             cur.execute("""
                 ALTER TABLE users
                 ADD COLUMN IF NOT EXISTS last_used TIMESTAMP;
@@ -34,6 +35,21 @@ if DATABASE_URL:
             cur.execute("""
                 ALTER TABLE users
                 ADD COLUMN IF NOT EXISTS request_count INTEGER DEFAULT 1;
+            """)
+
+            # 🔥 CRITICAL FIX: ensure email is UNIQUE
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'users_email_key'
+                    ) THEN
+                        ALTER TABLE users
+                        ADD CONSTRAINT users_email_key UNIQUE (email);
+                    END IF;
+                END
+                $$;
             """)
 
     except Exception as e:
