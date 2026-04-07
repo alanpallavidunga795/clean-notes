@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 import psycopg2
 
-DATABASE_URL = os.getenv("redis://red-d7afkk4hg0os73b2ocu0:6379")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 conn = psycopg2.connect(DATABASE_URL)
 conn.autocommit = True
