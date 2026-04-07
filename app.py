@@ -17,13 +17,23 @@ if DATABASE_URL:
         conn.autocommit = True
 
         with conn.cursor() as cur:
+            # Create table if it doesn't exist
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id SERIAL PRIMARY KEY,
-                    email TEXT UNIQUE,
-                    last_used TIMESTAMP,
-                    request_count INTEGER DEFAULT 1
+                    email TEXT UNIQUE
                 );
+            """)
+
+            # 🔧 ADD missing columns safely (only if they don't exist)
+            cur.execute("""
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS last_used TIMESTAMP;
+            """)
+
+            cur.execute("""
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS request_count INTEGER DEFAULT 1;
             """)
 
     except Exception as e:
