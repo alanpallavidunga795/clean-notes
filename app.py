@@ -2,6 +2,21 @@ from flask import Flask, render_template, request, jsonify
 from openai import OpenAI
 import os
 from datetime import datetime
+import psycopg2
+
+DATABASE_URL = os.getenv("redis://red-d7afkk4hg0os73b2ocu0:6379")
+
+conn = psycopg2.connect(DATABASE_URL)
+conn.autocommit = True
+
+with conn.cursor() as cur:
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            email TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
 
 app = Flask(__name__)
 
@@ -110,6 +125,16 @@ def generate():
     if not user_input.strip():
         return jsonify({"error": "No input provided"}), 400
     user_email = data.get("email", "anonymous")
+
+    if user_email and user_email != "anonymous":
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO users (email) VALUES (%s);",
+                    (user_email,)
+                )
+        except Exception as e:
+            print("DB insert error:", e)
 
     # (Optional) simple logging (no DB yet)
     print(f"[{datetime.now()}] Request from: {user_email}")
