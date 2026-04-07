@@ -4,8 +4,9 @@ import os
 from datetime import datetime
 import psycopg2
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+app = Flask(__name__)
 
+# ===== DATABASE SETUP =====
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 conn = None
@@ -14,21 +15,22 @@ if DATABASE_URL:
     try:
         conn = psycopg2.connect(DATABASE_URL)
         conn.autocommit = True
+
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    email TEXT UNIQUE,
+                    last_used TIMESTAMP,
+                    request_count INTEGER DEFAULT 1
+                );
+            """)
+
     except Exception as e:
         print("Database connection failed:", e)
 
-with conn.cursor() as cur:
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            email TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
 
-app = Flask(__name__)
-
-# Use environment variable (recommended)
+# ===== OPENAI SETUP =====
 api_key = os.getenv("OPENAI_API_KEY")
 
 if not api_key:
@@ -36,9 +38,9 @@ if not api_key:
 
 client = OpenAI(api_key=api_key)
 
+
 # ===== PROMPT TEMPLATE =====
 def build_prompt(user_input):
-
     return f"""
 You are a clinical documentation assistant supporting healthcare professionals (doctors, nurses, therapists, and counselors).
 
@@ -119,6 +121,7 @@ Return ONLY the structured output.
 Do NOT include redundant information.
 """
 
+
 # ===== ROUTES =====
 @app.route("/")
 def home():
@@ -126,15 +129,16 @@ def home():
 
 
 @app.route("/generate", methods=["POST"])
-print("INSERTING EMAIL:", user_email)
 def generate():
     data = request.json
     user_input = data.get("input", "")
 
     if not user_input.strip():
         return jsonify({"error": "No input provided"}), 400
+
     user_email = data.get("email", "anonymous")
 
+    # Save email usage to database
     if conn and user_email and user_email != "anonymous":
         try:
             with conn.cursor() as cur:
@@ -149,7 +153,7 @@ def generate():
         except Exception as e:
             print("DB error:", e)
 
-    # (Optional) simple logging (no DB yet)
+    # Logging
     print(f"[{datetime.now()}] Request from: {user_email}")
 
     prompt = build_prompt(user_input)
@@ -166,6 +170,7 @@ def generate():
     output = response.choices[0].message.content
 
     return jsonify({"result": output})
+
 
 @app.route("/admin/users", methods=["GET"])
 def admin_users():
@@ -193,5 +198,7 @@ def admin_users():
     except Exception as e:
         return f"Error: {e}"
 
+
+# ===== RUN APP =====
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
