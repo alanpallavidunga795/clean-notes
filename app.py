@@ -126,6 +126,7 @@ def home():
 
 
 @app.route("/generate", methods=["POST"])
+print("INSERTING EMAIL:", user_email)
 def generate():
     data = request.json
     user_input = data.get("input", "")
@@ -166,6 +167,31 @@ def generate():
 
     return jsonify({"result": output})
 
+@app.route("/admin/users", methods=["GET"])
+def admin_users():
+    if conn is None:
+        return "Database not connected"
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT email, last_used, request_count
+                FROM users
+                ORDER BY last_used DESC;
+            """)
+            rows = cur.fetchall()
+
+        html = "<h2>Stored Users</h2><table border='1' cellpadding='6'>"
+        html += "<tr><th>Email</th><th>Last Used</th><th>Requests</th></tr>"
+
+        for r in rows:
+            html += f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td></tr>"
+
+        html += "</table>"
+        return html
+
+    except Exception as e:
+        return f"Error: {e}"
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
