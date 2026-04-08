@@ -60,6 +60,32 @@ button:hover {
     background-color: #1a5edb;
 }
 
+/* 🎤 mic button override */
+#micBtn {
+    width: auto;
+    padding: 6px 10px;
+    font-size: 14px;
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    background-color: #2cd44a;
+}
+
+#micBtn:hover {
+    background-color: #28bf43;
+}
+
+/* pulse animation */
+.pulsing {
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(241,141,59, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(241,141,59, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(241,141,59, 0); }
+}
+
 .output {
     margin-top: 25px;
 }
@@ -123,33 +149,14 @@ button:hover {
 .formatted-output {
     line-height: 1.7;
     font-size: 16px;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
 }
 
 .formatted-output p {
     margin: 0 0 15px 0;
 }
 
-.formatted-output h3 {
-    color: #024473;
-}
-
 .formatted-output h4 {
     margin-bottom: 2px;
-}
-
-.formatted-output strong {
-    display: block;
-    margin-top: 10px;
-}
-
-.formatted-output ul {
-    padding-left: 20px;
-}
-
-.formatted-output li {
-    margin-bottom: 5px;
 }
 </style>
 </head>
@@ -164,7 +171,11 @@ button:hover {
 
     <input id="emailInput" type="email" placeholder="Enter your email (optional)">
 
-    <textarea id="inputText" placeholder="Type or paste your raw clinical notes here..."></textarea>
+    <div style="position: relative;">
+        <textarea id="inputText" placeholder="Type or paste your raw clinical notes here..."></textarea>
+
+        <button id="micBtn" type="button">🎤 Record Notes</button>
+    </div>
 
     <button id="generateBtn" onclick="generateOutput()">
         Generate CleanNotes™
@@ -178,149 +189,113 @@ button:hover {
 <script>
 async function generateOutput() {
     const btn = document.getElementById("generateBtn");
-    btn.classList.add("loading");
-
     const input = document.getElementById("inputText").value;
     const email = document.getElementById("emailInput").value;
 
     if (!input.trim()) {
         alert("Please enter clinical notes.");
-        btn.classList.remove("loading");
         return;
     }
+
+    btn.classList.add("loading");
 
     try {
         const response = await fetch("/generate", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                input: input,
-                email: email
-            })
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({input, email})
         });
 
         const data = await response.json();
-
         const sections = data.result.split('---');
 
-        document.getElementById("output").innerHTML = `
+        document.getElementById("output").innerHTML = sections.map((s,i)=>`
             <div class="section">
-                <div class="formatted-output">
-                    ${marked.parse(sections[0] || "")}
-                </div>
-                <button class="copy-btn" onclick="copySection(0, this)">Copy</button>
+                <div class="formatted-output">${marked.parse(s||"")}</div>
+                <button class="copy-btn" onclick="copySection(${i}, this)">Copy</button>
             </div>
-
-            <div class="section">
-                <div class="formatted-output">
-                    ${marked.parse(sections[1] || "")}
-                </div>
-                <button class="copy-btn" onclick="copySection(1, this)">Copy</button>
-            </div>
-
-            <div class="section">
-                <div class="formatted-output">
-                    ${marked.parse(sections[2] || "")}
-                </div>
-                <button class="copy-btn" onclick="copySection(2, this)">Copy</button>
-            </div>
-        `;
+        `).join("");
 
         document.getElementById("output").dataset.raw = data.result;
 
     } catch (err) {
-    document.getElementById("output").innerHTML = `
-        <div class="section">
-            <p style="color:red;">Error generating CleanNotes&trade;. Please try again.</p>
-        </div>
-    `;
-    console.error(err);
-} finally {
+        document.getElementById("output").innerHTML =
+            `<div class="section"><p style="color:red;">Error generating CleanNotes™.</p></div>`;
+    } finally {
         btn.classList.remove("loading");
     }
 }
 
-window.copySection = async function(index, btn) {
-    const raw = document.getElementById("output").dataset.raw;
-    if (!raw) return;
+// ===== VOICE INPUT FINAL =====
+let recognition;
+let isRecording = false;
+let restarting = false;
 
-    const sections = raw.split('---');
-    const selected = (sections[index] || "").trim();
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 
-    let html = marked.parse(selected);
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
 
-// ensure spacing BEFORE BULLET SUMMARY and Missing Information (converted format)
-    // FORCE spacing BEFORE BULLET SUMMARY and Missing Information (robust fix)
-html = html
-    .replace(/<p><strong>BULLET SUMMARY<\/strong><\/p>/gi,
-        '<p>&nbsp;</p><p><strong>BULLET SUMMARY</strong></p>');
+    recognition.continuous = false;
+    recognition.interimResults = false;
 
-    // FIX: handle h4-based "Missing Information" (Markdown ####)
-    html = html.replace(
-    /(<\/ul>)(\s*<h4>\s*Missing Information:?\s*<\/h4>)/gi,
-    '$1<p>&nbsp;</p>$2'
-);
+    const textarea = document.getElementById("inputText");
+    const micBtn = document.getElementById("micBtn");
 
-    // CLEANUP FIRST
-    html = html.replace(/(<p>&nbsp;<\/p>\s*){2,}/g, '<p>&nbsp;</p>');
+    micBtn.onclick = () => {
+        if (!isRecording) {
+            try {
+                recognition.start();
+                isRecording = true;
+            } catch {}
+        } else {
+            isRecording = false;
+            recognition.stop();
+        }
+    };
 
-    // HARD RULE: convert ALL headings to controlled paragraph format (removes built-in heading spacing)
-    html = html.replace(/<(h1|h2|h3)>(.*?)<\/\1>/g,
-        '<p><strong>$2</strong></p>');
+    recognition.onstart = () => {
+        micBtn.innerText = "⏹ Stop";
+        micBtn.style.backgroundColor = "#f18d3b"; //orange
+        micBtn.classList.add("pulsing");
+    };
 
-    // SOAP categories spacing (ONLY one spacer line)
-    html = html.replace(/<p><strong>(Subjective|Objective|Assessment|Plan)<\/strong><\/p>/g,
-        '<p><strong>$1</strong></p><p>&nbsp;</p>');
+    recognition.onresult = (event) => {
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            if (event.results[i].isFinal) {
+                textarea.value += event.results[i][0].transcript + " ";
+            }
+        }
+    };
 
-    // Missing Information spacing (ONLY one spacer line)
-    html = html.replace(/<strong>Missing Information:<\/strong>/g,
-        '<p><strong>Missing Information:</strong></p><p>&nbsp;</p>');
+recognition.onend = () => {
+    if (isRecording && !restarting) {
+        restarting = true;
 
-    // spacing AFTER paragraphs (but prevent doubling)
-    html = html.replace(/<\/p>/g, '</p><p>&nbsp;</p>');
-
-    // collapse any accidental duplicates
-    html = html.replace(/(<p>&nbsp;<\/p>\s*){2,}/g, '<p>&nbsp;</p>');
-
-    html = `
-        <html>
-        <head>
-            <meta charset="UTF-8">
-        </head>
-        <body style="font-family:Arial; font-size:14px;">
-            ${html}
-        </body>
-        </html>
-    `;
-
-    const text = selected
-        .replace(/\*\*(.*?)\*\*/g, "$1")
-        .replace(/^\s*[-*]\s+/gm, "• ")
-        .replace(/\n{1,}/g, "\n\n")
-        .trim();
-
-    await navigator.clipboard.write([
-        new ClipboardItem({
-            "text/html": new Blob([html], { type: "text/html" }),
-            "text/plain": new Blob([text], { type: "text/plain" })
-        })
-    ]);
-
-    if (btn) {
-        const original = btn.innerText;
-        btn.innerText = "Copied!";
+        // Slight delay helps Chrome treat it as same session
         setTimeout(() => {
-    btn.classList.add("fade");
-    btn.innerText = original;
-
-    setTimeout(() => {
-        btn.classList.remove("fade");
-    }, 300);
-}, 1200);
+            try {
+                recognition.start();
+            } catch (e) {
+                console.warn("Restart blocked:", e);
+                isRecording = false; // fallback safety
+            }
+            restarting = false;
+        }, 700); // 🔑 increase from 300 → 700
+    } else {
+        micBtn.innerText = "🎤 Record Notes";
+       micBtn.style.backgroundColor = "#2cd44a"; // green
+        micBtn.classList.remove("pulsing");
     }
 };
+
+    recognition.onerror = (event) => {
+        console.error(event.error);
+    };
+
+} else {
+    document.getElementById("micBtn").style.display = "none";
+}
 </script>
 
 </body>
