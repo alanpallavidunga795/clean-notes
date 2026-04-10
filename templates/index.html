@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>CleanNotes™ | Clinical Documentation Engine</title>
+
+<style>
+
+/* ===== GLOBAL ===== */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    background: #f4f8fc;
+    color: #1f2d3d;
+    line-height: 1.6;
+}
+
+/* ===== HERO ===== */
+.hero {
+    background: #0b3d6d;
+    color: white;
+    padding: 45px 20px;
+    text-align: center;
+    position: relative;
+}
+
+.hero h1 {
+    font-size: 32px;
+    margin-bottom: 10px;
+}
+
+.hero h2 {
+    font-size: 16px;
+    font-weight: normal;
+    color: #cfe3f5;
+    margin-bottom: 15px;
+}
+
+.hero p {
+    color: #cfe3f5;
+    font-size: 18px;
+}
+
+/* ===== NAV BUTTON ===== */
+.top-link {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+}
+
+.top-link a {
+    padding: 10px 16px;
+    background-color: #2cd44a;
+    color: white;
+    border-radius: 6px;
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.top-link a:hover {
+    background-color: #28bf43;
+}
+
+/* ===== LAYOUT ===== */
+.container {
+    max-width: 900px;
+    margin: auto;
+    padding: 20px;
+}
+
+/* ===== CARDS ===== */
+.card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 25px;
+    border-left: 5px solid #047ed4;
+}
+
+/* ===== GREEN ACCENTS ===== */
+.highlight {
+    color: #2cd44a;
+    font-weight: bold;
+}
+
+/* ===== CTA ===== */
+.cta-group {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 30px;
+    background: #e3f6ea; /* darker than before */
+    padding: 20px;
+    border-radius: 12px;
+}
+
+.btn {
+    padding: 14px 22px;
+    font-size: 16px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    color: white;
+    text-decoration: none;
+}
+
+.btn-primary {
+    background-color: #2cd44a;
+}
+.btn-primary:hover {
+    background-color: #28bf43;
+}
+
+.btn-secondary {
+    background-color: #047ed4;
+}
+.btn-secondary:hover {
+    background-color: #1a5edb;
+}
+
+/* ===== EXAMPLES ===== */
+.example {
+    background: #f9fbfd;
+    border: 1px solid #e2e6ea;
+    border-radius: 10px;
+    padding: 15px;
+    font-size: 14px;
+    white-space: pre-wrap;
+    margin-top: 10px;
+}
+
+.scroll-box {
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+/* ===== CONTACT ===== */
+input, textarea {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 16px;
+}
+
+textarea {
+    height: 120px;
+}
+
+.error {
+    color: red;
+    display: none;
+    font-size: 14px;
+}
+
+/* ===== MOBILE ===== */
+@media (max-width: 600px) {
+    .hero h1 {
+        font-size: 24px;
+    }
+}
+
+</style>
+</head>
+
+<body>
+
+<!-- HERO -->
+<div class="hero">
+    <div class="top-link">
+        <a href="/app">Start CleanNotes™</a>
+    </div>
+
+    <h1>
+        Save Hours Every Week on Clinical Notes&mdash;<br>
+        Without Changing How You Work
+    </h1>
+
+    <h2>CleanNotes™ Clinical Documentation Engine</h2>
+
+    <p>No setup. No learning curve. No technical knowledge required.</p>
+</div>
+
+<div class="container">
+
+<!-- PROBLEM -->
+<div class="card">
+<p>
+You’re an incredibly busy healthcare professional trying to stay efficient while avoiding&nbsp;burnout.
+</p>
+
+<p>
+The clock’s ticking—and your clinical notes are <span style="text-transform: uppercase;">STILL</span> not&nbsp;done.
+</p>
+
+<p>
+There are other things you need to do&mdash;and things you would actually <em>like</em> to do&mdash;but your notes keep pulling you&nbsp;back.
+</p>
+</div>
+
+<!-- SOLUTION -->
+<div class="card">
+<p>
+CleanNotes™ converts your raw notes into structured, professional clinical documentation in <strong>under 10&nbsp;seconds</strong>.
+</p>
+
+<p>
+Just type, paste, or speak* your notes—and get clean formats in a&nbsp;snap.
+</p>
+
+<p>With just <span style="text-transform: uppercase;">ONE</span> click you’ll get:</p>
+
+<ul>
+<li><strong>SOAP Notes</strong></li>
+<li><strong>Bullet Summary</strong></li>
+<li><strong>Paragraph Summary</strong></li>
+</ul>
+
+<p>
+And each format includes a <strong>Missing Information</strong> section—helping you identify critical&nbsp;gaps.
+</p>
+</div>
+
+<!-- EXAMPLE -->
+<div class="card">
+
+<p><strong>Before:</strong></p>
+
+<div class="example">
+45yo male feeling off past few days fatigue maybe
+sleep poor appetite ok denies pain unclear hx meds&nbsp;unknown
+</div>
+
+<p style="text-align:center; font-size:20px;">↓</p>
+
+<p><strong>After:</strong></p>
+
+<div class="example scroll-box">
+
+<strong>SOAP NOTE</strong>
+
+<strong>Subjective</strong>
+Patient reports feeling "off" for several days, possibly related to&nbsp;fatigue.
+
+<strong>Objective</strong>
+No objective findings were provided.
+
+<strong>Assessment</strong>
+Symptoms are non-specific and insufficient information is available for further&nbsp;assessment.
+
+<strong>Plan</strong>
+Further evaluation is recommended to clarify symptoms.
+
+<strong>Missing Information:</strong>
+• Symptom duration
+• Medical history
+• Medication list
+
+---
+
+<strong>BULLET SUMMARY</strong>
+• 45-year-old male
+• Reports feeling unwell for several days
+• Possible fatigue
+• Poor sleep
+
+<strong>Missing Information:</strong>
+• Symptom duration
+• Medical history
+• Medication list
+
+---
+
+<strong>PARAGRAPH SUMMARY</strong>
+A 45-year-old male presents with several days of feeling unwell, possibly related to fatigue. Sleep quality is poor, and no additional clinical data has been&nbsp;provided.
+
+<strong>Missing Information:</strong>
+• Symptom duration
+• Medical history
+• Medication list
+
+</div>
+
+</div>
+
+<!-- CTA -->
+<div class="cta-group">
+    <a href="/app" class="btn btn-primary">Start CleanNotes™</a>
+    <a href="#" class="btn btn-secondary">Support CleanNotes™</a>
+</div>
+
+<!-- TRUST -->
+<div class="card">
+<p>
+CleanNotes™ is free to use. If it saves you time, consider supporting it <strong>in whatever amount feels comfortable</strong>—so we can continue improving it and building ever smarter&nbsp;features.
+</p>
+
+<p><strong>No account required. No data&nbsp;stored.</strong></p>
+</div>
+
+<!-- CONTACT -->
+<div class="card">
+
+<p>
+Contact us to provide feedback, suggest features, or explore custom AI solutions designed for your&nbsp;workflow.
+</p>
+
+<input id="email" type="email" placeholder="Your email">
+<textarea id="message" placeholder="Your message"></textarea>
+
+<div id="error" class="error">Please enter a valid email and&nbsp;message.</div>
+
+<button class="btn btn-secondary" onclick="validate()">Send</button>
+
+</div>
+
+<!-- FOOTNOTE -->
+<div class="card">
+<p style="font-size:13px; color:#5f6c7b;">
+* Speech recognition is browser-based and not fully accurate. You may need to edit input. With support, accuracy will&nbsp;improve.
+</p>
+</div>
+
+</div>
+
+<script>
+async function validate() {
+    const email = document.getElementById("email").value;
+    const message = document.getElementById("message").value;
+    const error = document.getElementById("error");
+
+    const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+    if (!valid || !message.trim()) {
+        error.style.display = "block";
+        return;
+    }
+
+    error.style.display = "none";
+
+    try {
+        await fetch("/contact", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                email: email,
+                message: message
+            })
+        });
+
+        alert("Thanks for contacting us. Someone will respond to your message within 24 hours.");
+        document.getElementById("email").value = "";
+        document.getElementById("message").value = "";
+
+    } catch (err) {
+        alert("Error sending message. Please try again.");
+        console.error(err);
+    }
+}
+</script>
+
+</body>
+</html>

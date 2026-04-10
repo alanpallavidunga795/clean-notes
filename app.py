@@ -3,10 +3,11 @@ from openai import OpenAI
 import os
 from datetime import datetime
 import psycopg2
+import smtplib
+from email.mime.text import MIMEText
 
 app = Flask(__name__)
 
-# ===== DATABASE SETUP =====
 # ===== DATABASE SETUP =====
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -18,7 +19,7 @@ if DATABASE_URL:
         conn.autocommit = True
 
         with conn.cursor() as cur:
-            # Create base table if not exists
+            # Base table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id SERIAL PRIMARY KEY,
@@ -26,7 +27,7 @@ if DATABASE_URL:
                 );
             """)
 
-            # Add missing columns safely
+            # Safe schema upgrades
             cur.execute("""
                 ALTER TABLE users
                 ADD COLUMN IF NOT EXISTS last_used TIMESTAMP;
@@ -37,7 +38,7 @@ if DATABASE_URL:
                 ADD COLUMN IF NOT EXISTS request_count INTEGER DEFAULT 1;
             """)
 
-            # 🔥 CRITICAL FIX: ensure email is UNIQUE
+            # Ensure UNIQUE email constraint (required for ON CONFLICT)
             cur.execute("""
                 DO $$
                 BEGIN
@@ -65,52 +66,67 @@ if not api_key:
 client = OpenAI(api_key=api_key)
 
 
+# ===== EMAIL ALERT FUNCTION (HOSTINGER SMTP) =====
+def send_email_alert(source, email, message):
+    """
+    Sends alert when DB receives new entry
+    """
+
+    sender_email = os.getenv("EMAIL_SENDER")
+    sender_password = os.getenv("EMAIL_PASSWORD")
+
+    if not sender_email or not sender_password:
+        print("Email credentials not set.")
+        return
+
+    recipient = "alanadrift@gmail.com"
+
+    subject = f"CleanNotes DB Entry: {source}"
+
+    body = f"""
+New entry recorded in CleanNotes system:
+
+Type: {source}
+Time: {datetime.now()}
+
+Email: {email}
+
+Message:
+{message}
+"""
+
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["From"] = sender_email
+    msg["To"] = recipient
+
+    try:
+        with smtplib.SMTP_SSL("smtp.hostinger.com", 465) as server:
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, recipient, msg.as_string())
+
+    except Exception as e:
+        print("Email alert failed:", e)
+
+
 # ===== PROMPT TEMPLATE =====
 def build_prompt(user_input):
     return f"""
-You are a clinical documentation assistant supporting healthcare professionals (doctors, nurses, therapists, and counselors).
+You are a clinical documentation assistant supporting healthcare professionals.
 
-Your task is to convert raw clinical notes into structured, professional clinical documentation.
+Your task is to convert raw clinical notes into structured documentation.
 
-You MUST generate all three output formats for every input:
+You MUST generate:
 1. SOAP NOTE
 2. BULLET SUMMARY
 3. PARAGRAPH SUMMARY
 
 CORE RULES:
 - Do NOT invent clinical data
-- Do NOT diagnose beyond provided information
-- Use clear, concise, professional clinical language
-- Preserve all relevant details
-- Explicitly identify missing information
+- Use only provided information
+- Be concise and professional
 
-FORMAT DEFINITIONS:
-
-SOAP NOTE:
-- Subjective: patient-reported
-- Objective: measurable/observed only
-- Assessment: cautious synthesis, non-diagnostic if uncertain
-- Plan: suggest further evaluation only if needed
-
-Do NOT put a colon after SOAP categories in output.
-Make SOAP categories bold.
-
-BULLET SUMMARY:
-- Only factual extracted data
-- One fact per bullet
-- No interpretation
-
-PARAGRAPH SUMMARY:
-- Clean clinical paragraph
-- No bullets or headers
-- No added information
-
-MISSING INFORMATION:
-- Include after EACH format
-- Tailor depth per format
-- Do NOT repeat identical lists
-
-You MUST follow this STRICT OUTPUT FORMAT:
+FORMAT MUST BE STRICT:
 
 ### SOAP NOTE
 #### Subjective
@@ -138,33 +154,34 @@ You MUST follow this STRICT OUTPUT FORMAT:
 #### Missing Information:
 - ...
 
-Do NOT vary formatting. Output MUST follow the template every time.
-
 INPUT:
 {user_input}
 
-Return ONLY the structured output.
-Do NOT include redundant information.
+Return ONLY structured output.
 """
 
 
 # ===== ROUTES =====
 @app.route("/")
-def home():
-    return render_template("clean-notes.html")
+def landing():
+    return render_template("index.html")
+
+
+@app.route("/app")
+def app_page():
+    return render_template("app.html")
 
 
 @app.route("/generate", methods=["POST"])
 def generate():
     data = request.json
     user_input = data.get("input", "")
+    user_email = data.get("email", "anonymous")
 
     if not user_input.strip():
         return jsonify({"error": "No input provided"}), 400
 
-    user_email = data.get("email", "anonymous")
-
-    # Save email usage to database
+    # ===== DB LOGGING =====
     if conn and user_email and user_email != "anonymous":
         try:
             with conn.cursor() as cur:
@@ -179,16 +196,28 @@ def generate():
         except Exception as e:
             print("DB error:", e)
 
-    # Logging
-    print(f"[{datetime.now()}] Request from: {user_email}")
+    @app.route("/test-email")
+    def test_email():
+        try:
+            send_email_alert(
+                source="manual-test",
+                email="test@local",
+                message="This is a test email from CleanNotes SMTP pipeline."
+            )
+            return "Email sent (check inbox)"
+        except Exception as e:
+            return f"Email failed: {e}"
 
-    prompt = build_prompt(user_input)
+    # ===== EMAIL ALERT (TO YOU) =====
+    send_email_alert("tool", user_email, user_input)
+
+    print(f"[{datetime.now()}] Request from: {user_email}")
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": "You are a clinical documentation assistant."},
-            {"role": "user", "content": prompt}
+            {"role": "user", "content": build_prompt(user_input)}
         ],
         temperature=0.2
     )
