@@ -19,7 +19,6 @@ if DATABASE_URL:
         conn.autocommit = True
 
         with conn.cursor() as cur:
-            # Base table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id SERIAL PRIMARY KEY,
@@ -27,7 +26,6 @@ if DATABASE_URL:
                 );
             """)
 
-            # Safe schema upgrades
             cur.execute("""
                 ALTER TABLE users
                 ADD COLUMN IF NOT EXISTS last_used TIMESTAMP;
@@ -38,7 +36,6 @@ if DATABASE_URL:
                 ADD COLUMN IF NOT EXISTS request_count INTEGER DEFAULT 1;
             """)
 
-            # Ensure UNIQUE email constraint (required for ON CONFLICT)
             cur.execute("""
                 DO $$
                 BEGIN
@@ -61,17 +58,13 @@ if DATABASE_URL:
 api_key = os.getenv("OPENAI_API_KEY")
 
 if not api_key:
-    raise ValueError("OPENAI_API_KEY is not set in environment variables")
+    raise ValueError("OPENAI_API_KEY is not set")
 
 client = OpenAI(api_key=api_key)
 
 
-# ===== EMAIL ALERT FUNCTION (HOSTINGER SMTP) =====
+# ===== EMAIL FUNCTION =====
 def send_email_alert(source, email, message):
-    """
-    Sends alert when DB receives new entry
-    """
-
     sender_email = os.getenv("EMAIL_SENDER")
     sender_password = os.getenv("EMAIL_PASSWORD")
 
@@ -81,10 +74,10 @@ def send_email_alert(source, email, message):
 
     recipient = "alanadrift@gmail.com"
 
-    subject = f"CleanNotes DB Entry: {source}"
+    subject = f"CleanNotes Alert: {source}"
 
     body = f"""
-New entry recorded in CleanNotes system:
+New entry:
 
 Type: {source}
 Time: {datetime.now()}
@@ -104,64 +97,29 @@ Message:
         with smtplib.SMTP_SSL("smtp.hostinger.com", 465) as server:
             server.login(sender_email, sender_password)
             server.sendmail(sender_email, recipient, msg.as_string())
-
     except Exception as e:
-        print("Email alert failed:", e)
+        print("Email failed:", e)
 
 
-# ===== PROMPT TEMPLATE =====
+# ===== PROMPT =====
 def build_prompt(user_input):
     return f"""
-You are a clinical documentation assistant supporting healthcare professionals.
+You are a clinical documentation assistant.
 
-Your task is to convert raw clinical notes into structured documentation.
-
-You MUST generate:
+Convert input into:
 1. SOAP NOTE
 2. BULLET SUMMARY
 3. PARAGRAPH SUMMARY
 
-CORE RULES:
-- Do NOT invent clinical data
-- Use only provided information
-- Be concise and professional
-
-FORMAT MUST BE STRICT:
-
-### SOAP NOTE
-#### Subjective
-...
-#### Objective
-...
-#### Assessment
-...
-#### Plan
-...
-#### Missing Information:
-- ...
-
----
-
-### BULLET SUMMARY
-- ...
-#### Missing Information:
-- ...
-
----
-
-### PARAGRAPH SUMMARY
-...
-#### Missing Information:
-- ...
+Strict format required.
 
 INPUT:
 {user_input}
-
-Return ONLY structured output.
 """
 
 
 # ===== ROUTES =====
+
 @app.route("/")
 def landing():
     return render_template("index.html")
@@ -172,59 +130,69 @@ def app_page():
     return render_template("app.html")
 
 
+# ✅ FIXED: Proper placement (top-level, not inside another function)
+@app.route("/test-email")
+def test_email():
+    try:
+        send_email_alert(
+            source="manual-test",
+            email="test@local",
+            message="SMTP test successful"
+        )
+        return "Email sent (check inbox)"
+    except Exception as e:
+        return f"Email failed: {e}"
+
+
 @app.route("/generate", methods=["POST"])
 def generate():
-    data = request.json
-    user_input = data.get("input", "")
-    user_email = data.get("email", "anonymous")
+    try:
+        data = request.json
+        user_input = data.get("input", "")
+        user_email = data.get("email", "anonymous")
 
-    if not user_input.strip():
-        return jsonify({"error": "No input provided"}), 400
+        if not user_input.strip():
+            return jsonify({"error": "No input provided"}), 400
 
-    # ===== DB LOGGING =====
-    if conn and user_email and user_email != "anonymous":
+        # DB logging
+        if conn and user_email != "anonymous":
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO users (email, last_used, request_count)
+                        VALUES (%s, NOW(), 1)
+                        ON CONFLICT (email)
+                        DO UPDATE SET
+                            last_used = NOW(),
+                            request_count = users.request_count + 1;
+                    """, (user_email,))
+            except Exception as e:
+                print("DB error:", e)
+
+        # Email (non-blocking safe)
         try:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    INSERT INTO users (email, last_used, request_count)
-                    VALUES (%s, NOW(), 1)
-                    ON CONFLICT (email)
-                    DO UPDATE SET
-                        last_used = NOW(),
-                        request_count = users.request_count + 1;
-                """, (user_email,))
+            send_email_alert("tool", user_email, user_input)
         except Exception as e:
-            print("DB error:", e)
+            print("Email error (ignored):", e)
 
-    @app.route("/test-email")
-    def test_email():
-        try:
-            send_email_alert(
-                source="manual-test",
-                email="test@local",
-                message="This is a test email from CleanNotes SMTP pipeline."
-            )
-            return "Email sent (check inbox)"
-        except Exception as e:
-            return f"Email failed: {e}"
+        print(f"[{datetime.now()}] Request from: {user_email}")
 
-    # ===== EMAIL ALERT (TO YOU) =====
-    send_email_alert("tool", user_email, user_input)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a clinical documentation assistant."},
+                {"role": "user", "content": build_prompt(user_input)}
+            ],
+            temperature=0.2
+        )
 
-    print(f"[{datetime.now()}] Request from: {user_email}")
+        output = response.choices[0].message.content
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are a clinical documentation assistant."},
-            {"role": "user", "content": build_prompt(user_input)}
-        ],
-        temperature=0.2
-    )
+        return jsonify({"result": output})
 
-    output = response.choices[0].message.content
-
-    return jsonify({"result": output})
+    except Exception as e:
+        print("GENERATION ERROR:", e)
+        return jsonify({"error": "Generation failed"}), 500
 
 
 @app.route("/admin/users", methods=["GET"])
@@ -251,7 +219,7 @@ def admin_users():
             """)
             rows = cur.fetchall()
 
-        html = "<h2>Stored Users</h2><table border='1' cellpadding='6'>"
+        html = "<h2>Stored Users</h2><table border='1'>"
         html += "<tr><th>Email</th><th>Last Used</th><th>Requests</th></tr>"
 
         for r in rows:
@@ -264,6 +232,6 @@ def admin_users():
         return f"Error: {e}"
 
 
-# ===== RUN APP =====
+# ===== RUN =====
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
