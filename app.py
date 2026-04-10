@@ -7,11 +7,6 @@ import psycopg2
 import smtplib
 from email.mime.text import MIMEText
 
-except Exception as e:
-    print("===== OPENAI FAILURE =====")
-    print(traceback.format_exc())
-    return jsonify({"error": str(e)}), 500
-
 app = Flask(__name__)
 
 # ===== DATABASE SETUP =====
@@ -162,6 +157,7 @@ def generate():
     if not user_input.strip():
         return jsonify({"error": "No input provided"}), 400
 
+    # ===== DB LOGGING =====
     if conn and user_email != "anonymous":
         try:
             with conn.cursor() as cur:
@@ -176,8 +172,10 @@ def generate():
         except Exception as e:
             print("DB error:", e)
 
+    # ===== EMAIL ALERT =====
     send_email_alert("tool", user_email, user_input)
 
+    # ===== OPENAI CALL =====
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -193,7 +191,8 @@ def generate():
         return jsonify({"result": output})
 
     except Exception as e:
-        print("OPENAI FAILURE:", e)
+        print("===== OPENAI FAILURE =====")
+        print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
 
@@ -208,5 +207,6 @@ def admin_users():
     return "OK"
 
 
+# ===== RUN =====
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
