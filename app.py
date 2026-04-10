@@ -1,3 +1,4 @@
+import traceback
 from flask import Flask, render_template, request, jsonify, Response
 from openai import OpenAI
 import os
@@ -5,6 +6,11 @@ from datetime import datetime
 import psycopg2
 import smtplib
 from email.mime.text import MIMEText
+
+except Exception as e:
+    print("===== OPENAI FAILURE =====")
+    print(traceback.format_exc())
+    return jsonify({"error": str(e)}), 500
 
 app = Flask(__name__)
 
