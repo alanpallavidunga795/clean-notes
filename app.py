@@ -187,15 +187,13 @@ Return ONLY the formatted output.
 """
 
 
-# ===== CLEAN STRUCTURE FIX (CRITICAL) =====
+# ===== CLEAN STRUCTURE FIX =====
 def normalize_output(text):
     if not text:
         return text
 
-    # Force correct separators (this is the real fix)
     text = text.replace('--------------------------------', '---')
 
-    # Ensure exactly 3 sections
     parts = text.split('---')
 
     if len(parts) >= 3:
@@ -229,7 +227,7 @@ def generate():
     if not user_input.strip():
         return jsonify({"error": "No input provided"}), 400
 
-    # DB
+    # DB (TOOL)
     if conn and user_email != "anonymous":
         try:
             with conn.cursor() as cur:
@@ -244,7 +242,7 @@ def generate():
         except Exception as e:
             print("DB error:", e)
 
-    # EMAIL
+    # EMAIL (TOOL)
     send_email_alert("tool", user_email, user_input)
 
     try:
@@ -259,7 +257,6 @@ def generate():
 
         output = response.choices[0].message.content
 
-        # 🔥 REAL FIX (STRUCTURE, NOT CONTENT)
         output = normalize_output(output)
 
         return jsonify({"result": output})
@@ -267,6 +264,43 @@ def generate():
     except Exception as e:
         print("OPENAI ERROR:", traceback.format_exc())
         return jsonify({"error": str(e)}), 500
+
+
+# ===== NEW: CONTACT ROUTE =====
+@app.route("/contact", methods=["POST"])
+def contact():
+
+    data = request.get_json(silent=True)
+
+    if not data:
+        return jsonify({"error": "No JSON received"}), 400
+
+    email = data.get("email", "")
+    message = data.get("message", "")
+
+    if not email or not message.strip():
+        return jsonify({"error": "Missing fields"}), 400
+
+    # DB (CONTACT)
+    if conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO users (email, source, last_used, request_count)
+                    VALUES (%s, %s, NOW(), 1)
+                    ON CONFLICT (email)
+                    DO UPDATE SET
+                        last_used = NOW(),
+                        request_count = users.request_count + 1,
+                        source = EXCLUDED.source;
+                """, (email, "contact"))
+        except Exception as e:
+            print("DB contact error:", e)
+
+    # EMAIL (CONTACT)
+    send_email_alert("contact", email, message)
+
+    return jsonify({"status": "success"})
 
 
 @app.route("/test-email")
