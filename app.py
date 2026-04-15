@@ -1,11 +1,14 @@
 import traceback
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify
 from openai import OpenAI
 import os
 from datetime import datetime
 import psycopg2
 import smtplib
 from email.mime.text import MIMEText
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 
@@ -38,6 +41,11 @@ if DATABASE_URL:
             """)
 
             cur.execute("""
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'tool';
+            """)
+
+            cur.execute("""
                 DO $$
                 BEGIN
                     IF NOT EXISTS (
@@ -66,14 +74,16 @@ client = OpenAI(api_key=api_key)
 
 # ===== EMAIL ALERT FUNCTION =====
 def send_email_alert(source, email, message):
+    if not email or email == "anonymous":
+        return
+
     sender_email = os.getenv("EMAIL_SENDER")
     sender_password = os.getenv("EMAIL_PASSWORD")
 
     if not sender_email or not sender_password:
-        print("Email credentials not set.")
         return
 
-    recipient = "alanadrift@gmail.com"
+    recipient = "alan.bellinger@aiagentforhealth.com"
 
     msg = MIMEText(f"""
 Type: {source}
@@ -96,47 +106,102 @@ Message:
         print("Email alert failed:", e)
 
 
-# ===== PROMPT TEMPLATE =====
+# ===== PROMPT TEMPLATE (UNCHANGED) =====
 def build_prompt(user_input):
     return f"""
-You are a clinical documentation assistant supporting healthcare professionals.
+You are a clinical documentation assistant.
 
-You MUST generate:
-1. SOAP NOTE
-2. BULLET SUMMARY
-3. PARAGRAPH SUMMARY
+Your task is to generate structured clinical documentation from the provided input.
 
-STRICT FORMAT:
+CORE REQUIREMENT (CRITICAL):
+You MUST generate THREE sections, each containing a "Missing Information" subsection.
+
+These three "Missing Information" subsections MUST follow these rules:
+
+1. They MUST be semantically distinct (different angles of missing data).
+2. They MUST NOT reuse wording, phrasing, or sentence structure across sections.
+3. They MUST NOT be paraphrases of each other.
+4. Each list MUST be generated using a different reasoning lens:
+     - SOAP → clinical diagnostic uncertainty
+     - Bullet Summary → objective/measurable missing data
+     - Paragraph Summary → contextual/background gaps
+5. If overlap in concept is unavoidable, you MUST:
+    - Change framing
+    - Change terminology
+    - Change sentence structure
+    - Change level of abstraction
+
+Failure to differentiate these will result in an incorrect output.
+
+OUTPUT STRUCTURE (STRICT)
+Generate EXACTLY three sections in this order:
 
 ### SOAP NOTE
 #### Subjective
-...
+Write as a paragraph.
+
 #### Objective
-...
+Write as a paragraph.
+
 #### Assessment
-...
+Write as a paragraph, and provide cautious clinical interpretation.
+
 #### Plan
-...
+Write as a paragraph, and list next steps if appropriate.
+
 #### Missing Information:
-- ...
-
+Write 3–5 items focusing on diagnostic uncertainties or clinical unknowns.
+These should reflect what a clinician still needs to confirm a diagnosis.
 ---
-
 ### BULLET SUMMARY
-- ...
-#### Missing Information:
-- ...
+Extract facts only (one per bullet)
+No interpretation
 
+#### Missing Information:
+Write 3–5 items focusing ONLY on quantifiable, measurable, or documentable data that is absent
+(e.g., vitals, lab values, duration, frequency, scales, test results).
 ---
-
 ### PARAGRAPH SUMMARY
-...
+Write ONE clean, cohesive paragraph summarizing the case.
+
 #### Missing Information:
-- ...
+Write 3–5 items focusing on contextual gaps, such as:
+- history
+- environment
+- psychosocial factors
+- timeline clarity
+- prior treatment context
+---
+HARD CONSTRAINTS:
+- DO NOT repeat ideas across "Missing Information" sections
+- DO NOT reuse wording or phrasing across sections
+- DO NOT generate templated or generic statements
+- ALL content MUST be derived from the specific input
+- Each section MUST feel independently reasoned
 
 INPUT:
 {user_input}
+
+OUTPUT RULE:
+Return ONLY the formatted output.
 """
+
+
+# ===== CLEAN STRUCTURE FIX (CRITICAL) =====
+def normalize_output(text):
+    if not text:
+        return text
+
+    # Force correct separators (this is the real fix)
+    text = text.replace('--------------------------------', '---')
+
+    # Ensure exactly 3 sections
+    parts = text.split('---')
+
+    if len(parts) >= 3:
+        return '---'.join([p.strip() for p in parts[:3]])
+
+    return text
 
 
 # ===== ROUTES =====
@@ -144,55 +209,63 @@ INPUT:
 def landing():
     return render_template("index.html")
 
+
 @app.route("/app")
 def app_page():
     return render_template("app.html")
 
+
 @app.route("/generate", methods=["POST"])
 def generate():
-    data = request.get_json(force=True)
+
+    data = request.get_json(silent=True)
+
+    if not data:
+        return jsonify({"error": "No JSON received"}), 400
+
     user_input = data.get("input", "")
     user_email = data.get("email", "anonymous")
 
     if not user_input.strip():
         return jsonify({"error": "No input provided"}), 400
 
-    # ===== DB LOGGING =====
+    # DB
     if conn and user_email != "anonymous":
         try:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO users (email, last_used, request_count)
-                    VALUES (%s, NOW(), 1)
+                    INSERT INTO users (email, source, last_used, request_count)
+                    VALUES (%s, %s, NOW(), 1)
                     ON CONFLICT (email)
                     DO UPDATE SET
                         last_used = NOW(),
                         request_count = users.request_count + 1;
-                """, (user_email,))
+                """, (user_email, "tool"))
         except Exception as e:
             print("DB error:", e)
 
-    # ===== EMAIL ALERT =====
+    # EMAIL
     send_email_alert("tool", user_email, user_input)
 
-    # ===== OPENAI CALL =====
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are a clinical documentation assistant."},
+                {"role": "system", "content": "Strict clinical formatter."},
                 {"role": "user", "content": build_prompt(user_input)}
             ],
-            temperature=0.2
+            temperature=0.3
         )
 
         output = response.choices[0].message.content
 
+        # 🔥 REAL FIX (STRUCTURE, NOT CONTENT)
+        output = normalize_output(output)
+
         return jsonify({"result": output})
 
     except Exception as e:
-        print("===== OPENAI FAILURE =====")
-        print(traceback.format_exc())
+        print("OPENAI ERROR:", traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
 
@@ -204,9 +277,31 @@ def test_email():
 
 @app.route("/admin/users")
 def admin_users():
-    return "OK"
+    if not conn:
+        return "Database not connected"
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT email, source, last_used, request_count
+                FROM users
+                ORDER BY last_used DESC NULLS LAST;
+            """)
+            rows = cur.fetchall()
+
+        html = "<h2>Users</h2><table border='1' cellpadding='6'>"
+        html += "<tr><th>Email</th><th>Source</th><th>Last Used</th><th>Requests</th></tr>"
+
+        for r in rows:
+            html += f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td></tr>"
+
+        html += "</table>"
+        return html
+
+    except Exception as e:
+        return f"Error: {e}"
 
 
 # ===== RUN =====
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    app.run(host="0.0.0.0", port=10000, debug=True, use_reloader=False)
