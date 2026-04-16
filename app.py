@@ -311,8 +311,8 @@ def test_email():
 
 
 # ===== BASIC AUTH =====
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "change-this-password")
+ADMIN_USERNAME = os.getenv("DB_ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("DB_ADMIN_PASSWORD", "change-this-password")
 
 def check_auth(username, password):
     return username == ADMIN_USERNAME and password == ADMIN_PASSWORD
