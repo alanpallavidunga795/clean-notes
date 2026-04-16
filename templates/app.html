@@ -24,6 +24,8 @@ h1 {
     margin-bottom: 5px;
 }
 
+
+
 textarea {
     width: 100%;
     height: 150px;
@@ -174,6 +176,83 @@ button:hover {
     margin-bottom: 0;
 }
 
+@media (max-width: 600px) {
+    .donate-btn {
+        margin-bottom: 40px;
+    }
+}
+#alertBox {
+    margin-bottom: 15px;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    display: none;
+}
+
+#alertBox.show {
+    display: block;
+}
+
+#alertBox.error {
+    background-color: #ffe6e6;
+    color: #a30000;
+    border: 1px solid #ffb3b3;
+}
+
+#alertBox.success {
+    background-color: #e6ffed;
+    color: #046b2d;
+    border: 1px solid #b3ffc7;
+}
+
+#alertContainer {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.alert {
+    min-width: 250px;
+    max-width: 400px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    opacity: 0;
+    transform: translateY(-10px);
+    animation: fadeIn 0.3s ease forwards;
+}
+
+.alert.success {
+    background-color: #e6ffed;
+    color: #046b2d;
+    border: 1px solid #b3ffc7;
+}
+
+.alert.error {
+    background-color: #ffe6e6;
+    color: #a30000;
+    border: 1px solid #ffb3b3;
+}
+
+@keyframes fadeIn {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeOut {
+    to {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+}
+
 </style>
 </head>
 
@@ -188,6 +267,8 @@ button:hover {
         Clean<span style="color: #047ed4;">Notes</span>&trade;<br>
         <span style="font-size: 75%">Clinical Documentation Engine</span>
     </h1>
+
+<div id="alertContainer"></div>
 
     <input id="emailInput" type="email" placeholder="Enter your email (optional)">
 
@@ -207,6 +288,35 @@ button:hover {
 
 <script>
 // ===== GENERATE =====
+
+function showAlert(message, type = "error") {
+    const container = document.getElementById("alertContainer");
+
+    const alert = document.createElement("div");
+    alert.className = `alert ${type}`;
+
+    alert.innerHTML = `
+        ${message}
+        <span class="alert-close">&times;</span>
+    `;
+
+    container.appendChild(alert);
+
+    const removeAlert = () => {
+        alert.style.animation = "fadeOut 0.3s ease forwards";
+        setTimeout(() => alert.remove(), 300);
+    };
+
+    // auto-dismiss
+    const timeout = setTimeout(removeAlert, 3500);
+
+    // manual dismiss
+    alert.querySelector(".alert-close").onclick = () => {
+        clearTimeout(timeout);
+        removeAlert();
+    };
+}
+
 async function generateOutput() {
     const btn = document.getElementById("generateBtn");
     const outputEl = document.getElementById("output");
@@ -214,7 +324,7 @@ async function generateOutput() {
     const email = document.getElementById("emailInput").value;
 
     if (!input.trim()) {
-        alert("Please enter clinical notes.");
+        showAlert("Please enter your clinical notes.");
         return;
     }
 
@@ -315,6 +425,9 @@ window.copySection = async function(index, btn) {
 
         if (btn) {
             const original = btn.innerText;
+
+            showAlert("Copied to clipboard", "success");
+
             btn.innerText = "Copied!";
             btn.classList.add("fade");
 
@@ -325,7 +438,7 @@ window.copySection = async function(index, btn) {
         }
 
     } catch (err) {
-        alert("Copy failed: " + err.message);
+        showAlert("Copy failed: " + err.message);
     }
 };
 
