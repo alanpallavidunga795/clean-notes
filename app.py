@@ -1,5 +1,5 @@
 import traceback
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 from openai import OpenAI
 import os
 from datetime import datetime
@@ -7,6 +7,7 @@ import psycopg2
 import smtplib
 from email.mime.text import MIMEText
 from dotenv import load_dotenv
+from functools import wraps
 
 load_dotenv()
 
@@ -187,13 +188,15 @@ Return ONLY the formatted output.
 """
 
 
-# ===== CLEAN STRUCTURE FIX =====
+# ===== CLEAN STRUCTURE FIX (CRITICAL) =====
 def normalize_output(text):
     if not text:
         return text
 
+    # Force correct separators (this is the real fix)
     text = text.replace('--------------------------------', '---')
 
+    # Ensure exactly 3 sections
     parts = text.split('---')
 
     if len(parts) >= 3:
@@ -201,6 +204,40 @@ def normalize_output(text):
 
     return text
 
+@app.route("/contact", methods=["POST"])
+def contact():
+
+    data = request.get_json(silent=True)
+
+    if not data:
+        return jsonify({"error": "No JSON received"}), 400
+
+    email = data.get("email", "")
+    message = data.get("message", "")
+
+    if not email or not message.strip():
+        return jsonify({"error": "Missing fields"}), 400
+
+    # ===== DB ENTRY (CONTACT SOURCE) =====
+    if conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO users (email, source, last_used, request_count)
+                    VALUES (%s, %s, NOW(), 1)
+                    ON CONFLICT (email)
+                    DO UPDATE SET
+                        last_used = NOW(),
+                        request_count = users.request_count + 1,
+                        source = EXCLUDED.source;
+                """, (email, "contact"))
+        except Exception as e:
+            print("DB contact error:", e)
+
+    # ===== EMAIL ALERT (CONTACT SOURCE) =====
+    send_email_alert("contact", email, message)
+
+    return jsonify({"status": "success"})
 
 # ===== ROUTES =====
 @app.route("/")
@@ -227,7 +264,7 @@ def generate():
     if not user_input.strip():
         return jsonify({"error": "No input provided"}), 400
 
-    # DB (TOOL)
+    # DB
     if conn and user_email != "anonymous":
         try:
             with conn.cursor() as cur:
@@ -242,7 +279,7 @@ def generate():
         except Exception as e:
             print("DB error:", e)
 
-    # EMAIL (TOOL)
+    # EMAIL
     send_email_alert("tool", user_email, user_input)
 
     try:
@@ -257,6 +294,7 @@ def generate():
 
         output = response.choices[0].message.content
 
+        # 🔥 REAL FIX (STRUCTURE, NOT CONTENT)
         output = normalize_output(output)
 
         return jsonify({"result": output})
@@ -266,50 +304,38 @@ def generate():
         return jsonify({"error": str(e)}), 500
 
 
-# ===== NEW: CONTACT ROUTE =====
-@app.route("/contact", methods=["POST"])
-def contact():
-
-    data = request.get_json(silent=True)
-
-    if not data:
-        return jsonify({"error": "No JSON received"}), 400
-
-    email = data.get("email", "")
-    message = data.get("message", "")
-
-    if not email or not message.strip():
-        return jsonify({"error": "Missing fields"}), 400
-
-    # DB (CONTACT)
-    if conn:
-        try:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    INSERT INTO users (email, source, last_used, request_count)
-                    VALUES (%s, %s, NOW(), 1)
-                    ON CONFLICT (email)
-                    DO UPDATE SET
-                        last_used = NOW(),
-                        request_count = users.request_count + 1,
-                        source = EXCLUDED.source;
-                """, (email, "contact"))
-        except Exception as e:
-            print("DB contact error:", e)
-
-    # EMAIL (CONTACT)
-    send_email_alert("contact", email, message)
-
-    return jsonify({"status": "success"})
-
-
 @app.route("/test-email")
 def test_email():
     send_email_alert("test", "test@local", "SMTP working")
     return "Email sent"
 
 
+# ===== BASIC AUTH =====
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "change-this-password")
+
+def check_auth(username, password):
+    return username == ADMIN_USERNAME and password == ADMIN_PASSWORD
+
+def authenticate():
+    return Response(
+        "Authentication required", 401,
+        {"WWW-Authenticate": 'Basic realm="Login Required"'}
+    )
+
+def requires_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return authenticate()
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ===== SECURED ADMIN ROUTE =====
 @app.route("/admin/users")
+@requires_auth
 def admin_users():
     if not conn:
         return "Database not connected"

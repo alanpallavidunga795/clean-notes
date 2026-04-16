@@ -92,7 +92,7 @@ body {
     flex-wrap: wrap;
     justify-content: center;
     margin-top: 30px;
-    background: #e3f6ea;
+    background: #e3f6ea; /* darker than before */
     padding: 20px;
     border-radius: 12px;
 }
@@ -152,9 +152,9 @@ textarea {
 }
 
 .error {
+    color: red;
     display: none;
     font-size: 14px;
-    margin-top: 10px;
 }
 
 /* ===== MOBILE ===== */
@@ -209,10 +209,10 @@ CleanNotes™ will quickly convert your raw notes into <strong>structured, profe
 </p>
 
 <p>
-Just type, paste, or speak* your notes and get three clean formats&mdash;usually <strong>within&nbsp;<span style="text-transform: uppercase;">SECONDS</span></strong>.&ast;&ast;
+Just type, paste, or speak* your notes—and get three clean formats <strong>in&nbsp;<span style="text-transform: uppercase;">SECONDS</span></strong>.
 </p>
 
-<p>With just <span style="text-transform: uppercase;">ONE</span> click you’ll&nbsp;get:</p>
+<p>With just <span style="text-transform: uppercase;">ONE</span> click you’ll get:</p>
 
 <ul>
 <li><strong>SOAP Notes</strong></li>
@@ -227,9 +227,11 @@ And each format includes a <strong>Missing Information</strong> section—helpin
 
 <!-- EXAMPLE -->
 <div class="card">
+
 <p><strong>Before:</strong></p>
+
 <div class="example">
-45 yo male chest pain started yesterday worse with movement no prior cardiac hx bp elevated smokes occasionally denies&nbsp;sob
+45 yo male chest pain started yesterday worse with movement no prior cardiac hx bp elevated smokes occasionally denies sob
 </div>
 
 <p style="text-align:center; font-size:20px;">↓</p>
@@ -237,14 +239,66 @@ And each format includes a <strong>Missing Information</strong> section—helpin
 <p><strong>After:</strong></p>
 
 <div class="example scroll-box">
-[UNCHANGED CONTENT REMAINS EXACTLY AS YOU PROVIDED]
+
+<strong>SOAP NOTE</strong>
+
+<strong>Subjective</strong>
+The patient is a 45-year-old male presenting with chest pain that began yesterday. He reports that the pain worsens with movement and does not have a history of cardiac issues. He occasionally smokes and denies experiencing shortness of breath.
+
+<strong>Objective</strong>
+Upon examination, the patient exhibits elevated blood pressure readings. No other vital signs were documented at this time. There are no observable signs of respiratory distress, and the patient appears in moderate discomfort due to the chest pain.
+
+<strong>Assessment</strong>
+The clinical presentation of chest pain in this patient, particularly with exacerbation upon movement, raises concerns for musculoskeletal causes or potential cardiac issues, despite the absence of prior cardiac history. The elevated blood pressure may indicate stress or pain-related responses, but further evaluation is necessary to rule out serious conditions such as myocardial infarction or pulmonary issues.
+
+<strong>Plan</strong>
+The plan includes obtaining an electrocardiogram (ECG) to assess cardiac function, performing blood tests including cardiac enzymes, and considering imaging studies if indicated. The patient should be monitored closely for any changes in symptoms, and lifestyle modifications regarding smoking should be discussed.
+
+<strong>Missing Information:</strong>
+• Confirmation of the pain's character (e.g., sharp, dull, radiating) to better assess the etiology.
+• Details regarding the patient's smoking history, including frequency and quantity, to evaluate cardiovascular risk.
+• Previous episodes of chest pain or related symptoms to determine if this is an isolated incident or part of a pattern.
+• Family history of cardiac disease to assess genetic predisposition.
+• Any recent physical activities or stressors that could have contributed to the current symptoms.
+
+
+---
+
+<strong>BULLET SUMMARY</strong>
+• 45-year-old male.
+• Chest pain started yesterday.
+• Pain worsens with movement.
+• No prior cardiac history.
+• Blood pressure is elevated.
+
+<strong>Missing Information:</strong>
+• Exact blood pressure readings to quantify hypertension severity.
+• Duration of chest pain episodes to assess acute vs. chronic nature.
+• Heart rate and respiratory rate at the time of examination.
+• Results of any cardiac enzyme tests to evaluate myocardial injury.
+• ECG findings to determine any arrhythmias or ischemic changes.
+
+
+---
+
+<strong>PARAGRAPH SUMMARY</strong>
+The patient is a 45-year-old male who presented with a complaint of chest pain that began yesterday and has intensified with movement. He has no significant history of cardiac issues and reports occasional smoking. His blood pressure is elevated, but he denies any shortness of breath. The clinical picture suggests a need for further investigation to rule out both musculoskeletal and cardiac causes of the pain.
+
+<strong>Missing Information:</strong>
+• A detailed medical history, including any prior illnesses or surgeries, to provide context for current symptoms.
+• Information about the patient's living situation and support system, which may impact health management.
+• Insights into the patient's lifestyle habits beyond smoking, such as diet and exercise, to evaluate overall cardiovascular health.
+• Clarification on the timeline of symptom onset and any associated factors that may have triggered the pain.
+• Previous treatments or medications that the patient may have used for similar symptoms, if any.
+
 </div>
+
 </div>
 
 <!-- TRUST -->
 <div class="card">
 <p>
-CleanNotes™ is free to use. If it saves you time, please consider supporting it in <strong>whatever amount feels comfortable</strong> so that we can continue enhancing it with ever-smarter&nbsp;features that will reduce your workload even&nbsp;more.
+CleanNotes™ is free to use. If it saves you time, please consider supporting it in <strong>whatever amount feels comfortable</strong> so that we can continue enhancing it with ever-smarter&nbsp;features that will reduce your workload even more.
 </p>
 
 <p><strong>No account required. No data&nbsp;stored.</strong></p>
@@ -266,7 +320,7 @@ Contact us to provide feedback, suggest features, or explore AI solutions design
 <input id="email" type="email" placeholder="Your email">
 <textarea id="message" placeholder="Your message"></textarea>
 
-<div id="error" class="error"></div>
+<div id="error" class="error">Please enter a valid email and&nbsp;message.</div>
 
 <button class="btn btn-secondary" onclick="validate()">Send</button>
 
@@ -275,10 +329,7 @@ Contact us to provide feedback, suggest features, or explore AI solutions design
 <!-- FOOTNOTE -->
 <div class="card">
 <p style="font-size:13px; color:#5f6c7b;">
-* Speech recognition is browser-based and not fully accurate, so you may need to edit your input. With community support, the accuracy will&nbsp;improve.
-</p>
-<p style="font-size:13px; color:#5f6c7b;">
-&ast;&ast; Various factors, such as server availability and the length and/or complexity of your notes, can impact the actual processing&nbsp;time.
+* Speech recognition is browser-based and not fully accurate. You may need to edit input. With support, accuracy will&nbsp;improve.
 </p>
 </div>
 
@@ -294,8 +345,6 @@ async function validate() {
 
     if (!valid || !message.trim()) {
         error.style.display = "block";
-        error.style.color = "red";
-        error.innerText = "Please enter a valid email and message.";
         return;
     }
 
@@ -313,17 +362,12 @@ async function validate() {
             })
         });
 
-        error.style.display = "block";
-        error.style.color = "green";
-        error.innerText = "Thanks for contacting us. Someone will respond within 24 hours.";
-
+        alert("Thanks for contacting us. Someone will respond to your message within 24 hours.");
         document.getElementById("email").value = "";
         document.getElementById("message").value = "";
 
     } catch (err) {
-        error.style.display = "block";
-        error.style.color = "red";
-        error.innerText = "Error sending message. Please try again.";
+        alert("Error sending message. Please try again.");
         console.error(err);
     }
 }

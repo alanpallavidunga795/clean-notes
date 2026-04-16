@@ -152,14 +152,9 @@ button:hover {
     left: 0;
     top: 0;
     height: 100%;
-    width: 0%;
+    width: var(--progress, 0%);
     background-color: rgba(255,255,255,0.25);
-    animation: progressBar 6s linear forwards;
-}
-
-@keyframes progressBar {
-    from { width: 0%; }
-    to { width: 100%; }
+    transition: width 0.2s linear;
 }
 
 .formatted-output {
@@ -183,7 +178,6 @@ button:hover {
 
 <body>
 
-<!-- ✅ ONLY INSERTION -->
 <a href="https://donate.stripe.com/00w9ATcEog2y3u5g5Eew800" target="_blank" class="support-btn">
     Keep CleanNotes™ Free
 </a>
@@ -211,7 +205,7 @@ button:hover {
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
 <script>
-/* ENTIRE ORIGINAL SCRIPT — UNCHANGED */
+// ===== GENERATE =====
 async function generateOutput() {
     const btn = document.getElementById("generateBtn");
     const outputEl = document.getElementById("output");
@@ -224,6 +218,12 @@ async function generateOutput() {
     }
 
     btn.classList.add("loading");
+
+    let progress = 0;
+    const interval = setInterval(() => {
+        progress += (95 - progress) * 0.08;
+        btn.style.setProperty("--progress", progress + "%");
+    }, 200);
 
     try {
         const response = await fetch("/generate", {
@@ -238,41 +238,45 @@ async function generateOutput() {
             throw new Error("Invalid server response");
         }
 
-        const sections = data.result.split('---').map(s => s.trim());
+        clearInterval(interval);
+        btn.style.setProperty("--progress", "100%");
 
-        outputEl.innerHTML = `
-            <div class="section">
-                <div class="formatted-output">
-                    ${marked.parse(sections[0] || "")}
+        setTimeout(() => {
+            const sections = data.result.split('---').map(s => s.trim());
+
+            outputEl.innerHTML = `
+                <div class="section">
+                    <div class="formatted-output">${marked.parse(sections[0] || "")}</div>
+                    <button class="copy-btn" onclick="copySection(0, this)">Copy</button>
                 </div>
-                <button class="copy-btn" onclick="copySection(0, this)">Copy</button>
-            </div>
-
-            <div class="section">
-                <div class="formatted-output">
-                    ${marked.parse(sections[1] || "")}
+                <div class="section">
+                    <div class="formatted-output">${marked.parse(sections[1] || "")}</div>
+                    <button class="copy-btn" onclick="copySection(1, this)">Copy</button>
                 </div>
-                <button class="copy-btn" onclick="copySection(1, this)">Copy</button>
-            </div>
-
-            <div class="section">
-                <div class="formatted-output">
-                    ${marked.parse(sections[2] || "")}
+                <div class="section">
+                    <div class="formatted-output">${marked.parse(sections[2] || "")}</div>
+                    <button class="copy-btn" onclick="copySection(2, this)">Copy</button>
                 </div>
-                <button class="copy-btn" onclick="copySection(2, this)">Copy</button>
-            </div>
-        `;
+            `;
 
-        outputEl.dataset.raw = data.result;
+            outputEl.dataset.raw = data.result;
+
+            btn.classList.remove("loading");
+            btn.style.setProperty("--progress", "0%");
+        }, 200);
 
     } catch (err) {
+        clearInterval(interval);
+
         outputEl.innerHTML =
             `<div class="section"><p style="color:red;">Error generating CleanNotes™</p></div>`;
-    } finally {
+
         btn.classList.remove("loading");
+        btn.style.setProperty("--progress", "0%");
     }
 }
 
+// ===== COPY =====
 window.copySection = async function(index, btn) {
     try {
         const raw = document.getElementById("output").dataset.raw;
@@ -282,7 +286,6 @@ window.copySection = async function(index, btn) {
         const selected = (sections[index] || "").trim();
 
         let html = marked.parse(selected);
-        console.log(html);
 
         html = html.replace(/<\/p>/g, '</p><p>&nbsp;</p>');
         html = html.replace(/(<p>&nbsp;<\/p>\s*){2,}/g, '<p>&nbsp;</p>');
@@ -294,14 +297,7 @@ window.copySection = async function(index, btn) {
             '<h4>Missing Information:</h4><p><span style="font-size:6px;">&nbsp;</span></p>'
         );
 
-        html = `
-            <html>
-            <head><meta charset="UTF-8"></head>
-            <body style="font-family:Arial; font-size:14px;">
-                ${html}
-            </body>
-            </html>
-        `;
+        html = `<html><body style="font-family:Arial; font-size:14px;">${html}</body></html>`;
 
         const text = selected
             .replace(/\*\*(.*?)\*\*/g, "$1")
@@ -323,14 +319,11 @@ window.copySection = async function(index, btn) {
 
             setTimeout(() => {
                 btn.innerText = original;
-                setTimeout(() => {
-                    btn.classList.remove("fade");
-                }, 300);
+                setTimeout(() => btn.classList.remove("fade"), 300);
             }, 1200);
         }
 
     } catch (err) {
-        console.error("COPY ERROR:", err);
         alert("Copy failed: " + err.message);
     }
 };
@@ -345,18 +338,13 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
 
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
     const textarea = document.getElementById("inputText");
     const micBtn = document.getElementById("micBtn");
 
     micBtn.onclick = () => {
         if (!isRecording) {
-            try {
-                recognition.start();
-                isRecording = true;
-            } catch {}
+            recognition.start();
+            isRecording = true;
         } else {
             isRecording = false;
             recognition.stop();
@@ -381,11 +369,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         if (isRecording && !restarting) {
             restarting = true;
             setTimeout(() => {
-                try {
-                    recognition.start();
-                } catch (e) {
-                    isRecording = false;
-                }
+                try { recognition.start(); } catch {}
                 restarting = false;
             }, 700);
         } else {
@@ -393,10 +377,6 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             micBtn.style.backgroundColor = "#2cd44a";
             micBtn.classList.remove("pulsing");
         }
-    };
-
-    recognition.onerror = (event) => {
-        console.error(event.error);
     };
 
 } else {
