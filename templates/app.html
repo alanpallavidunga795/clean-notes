@@ -217,26 +217,44 @@ button:hover {
 }
 
 .alert {
-    min-width: 250px;
-    max-width: 400px;
-    padding: 12px 16px;
+    position: relative;
+    padding: 12px 40px 12px 16px; /* more right space */
     border-radius: 8px;
     font-size: 14px;
     opacity: 0;
     transform: translateY(-10px);
     animation: fadeIn 0.3s ease forwards;
+    pointer-events: auto; /* ensure clickable */
+}
+
+.alert-close {
+    position: absolute;
+    top: 50%;
+    right: 14px; /* moved further right */
+    transform: translateY(-50%);
+    font-size: 16px;
+    cursor: pointer;
+    opacity: 0.6;
+    user-select: none;
+    z-index: 2; /* ensure it's above */
+}
+
+.alert-close:hover {
+    opacity: 1;
 }
 
 .alert.success {
     background-color: #e6ffed;
     color: #046b2d;
     border: 1px solid #b3ffc7;
+    text-align: center;
 }
 
 .alert.error {
     background-color: #ffe6e6;
     color: #a30000;
     border: 1px solid #ffb3b3;
+    text-align: center;
 }
 
 @keyframes fadeIn {
@@ -295,11 +313,17 @@ function showAlert(message, type = "error") {
     const alert = document.createElement("div");
     alert.className = `alert ${type}`;
 
-    alert.innerHTML = `
-        ${message}
-        <span class="alert-close">&times;</span>
-    `;
+    // Create message node
+    const textNode = document.createElement("span");
+    textNode.innerText = message;
 
+    // Create close button
+    const closeBtn = document.createElement("span");
+    closeBtn.className = "alert-close";
+    closeBtn.innerHTML = "&times;";
+
+    alert.appendChild(textNode);
+    alert.appendChild(closeBtn);
     container.appendChild(alert);
 
     const removeAlert = () => {
@@ -307,14 +331,12 @@ function showAlert(message, type = "error") {
         setTimeout(() => alert.remove(), 300);
     };
 
-    // auto-dismiss
     const timeout = setTimeout(removeAlert, 3500);
 
-    // manual dismiss
-    alert.querySelector(".alert-close").onclick = () => {
+    closeBtn.addEventListener("click", () => {
         clearTimeout(timeout);
         removeAlert();
-    };
+    });
 }
 
 async function generateOutput() {
