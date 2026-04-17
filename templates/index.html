@@ -165,14 +165,12 @@ textarea {
 }
 
 #alertContainer {
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
+    position: absolute;
     z-index: 999999;
     display: flex;
     flex-direction: column;
     gap: 10px;
+    pointer-events: none;
 }
 
 .alert {
@@ -181,6 +179,7 @@ textarea {
     font-size: 14px;
     animation: fadeIn 0.3s ease forwards;
     position: relative;
+    pointer-events: auto;
 }
 
 .alert.success {
@@ -402,17 +401,17 @@ document.addEventListener("DOMContentLoaded", function () {
         const message = document.getElementById("message").value.trim();
 
         if (!email && !message) {
-            window.showAlert("Enter email address and message");
+            window.showAlert("Enter your email address and message.");
             return;
         }
 
         if (!email) {
-            window.showAlert("Enter email address");
+            window.showAlert("Enter your email address.");
             return;
         }
 
         if (!message) {
-            window.showAlert("Enter message");
+            window.showAlert("Enter your message.");
             return;
         }
 
@@ -430,7 +429,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 body: JSON.stringify({ email, message })
             });
 
-            window.showAlert("Message sent", "success");
+            window.showAlert("Thank you. Someone will respond to your message shortly.", "success");
+
+            document.getElementById("email").value = "";
+            document.getElementById("message").value = "";
+            document.getElementById("email").focus();
 
         } catch (err) {
             window.showAlert("Error sending message");

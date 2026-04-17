@@ -334,6 +334,29 @@ def requires_auth(f):
 
 
 # ===== SECURED ADMIN ROUTE =====
+
+@app.route("/reset-db")
+def reset_db():
+    conn = get_db_connection()  # use your existing connection function
+    cur = conn.cursor()
+
+    cur.execute("""
+        DO $$ DECLARE
+            r RECORD;
+        BEGIN
+            FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public')
+            LOOP
+                EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' RESTART IDENTITY CASCADE';
+            END LOOP;
+        END $$;
+    """)
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return "Database cleared"
+
 @app.route("/admin/users")
 @requires_auth
 def admin_users():

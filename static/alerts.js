@@ -3,6 +3,15 @@
     function showAlert(message, type = "error") {
         const container = document.getElementById("alertContainer");
 
+        const btn = document.querySelector(".btn.btn-secondary[onclick='validate()']");
+
+        if (btn) {
+            const rect = btn.getBoundingClientRect();
+
+            container.style.top = (rect.bottom + window.scrollY + 10) + "px";
+            container.style.left = (rect.left + window.scrollX) + "px";
+         }
+
         if (!container) {
             console.error("alertContainer not found");
             return;
