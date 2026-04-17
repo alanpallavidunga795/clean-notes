@@ -177,7 +177,7 @@ button:hover {
 }
 
 @media (max-width: 600px) {
-    .donate-btn {
+    .support-btn {
         margin-bottom: 40px;
     }
 }
@@ -288,7 +288,7 @@ button:hover {
 
 <div id="alertContainer"></div>
 
-    <input id="emailInput" type="email" placeholder="Enter your email (optional)">
+    <input id="emailInput" type="email" placeholder="Your email address (optional)">
 
     <div style="position: relative;">
         <textarea id="inputText" placeholder="Type or paste your raw clinical notes here..."></textarea>
@@ -306,7 +306,6 @@ button:hover {
 
 <script>
 // ===== GENERATE =====
-
 function showAlert(message, type = "error") {
     const container = document.getElementById("alertContainer");
 
@@ -398,15 +397,17 @@ async function generateOutput() {
             btn.style.setProperty("--progress", "0%");
         }, 200);
 
-    } catch (err) {
-        clearInterval(interval);
+} catch (err) {
+    clearInterval(interval);
 
-        outputEl.innerHTML =
-            `<div class="section"><p style="color:red;">Error generating CleanNotes™</p></div>`;
+    outputEl.innerHTML =
+        `<div class="section"><p style="color:red;">Error generating CleanNotes™</p></div>`;
 
-        btn.classList.remove("loading");
-        btn.style.setProperty("--progress", "0%");
-    }
+    showAlert("Error generating CleanNotes™. Please try again.", "error");
+
+    btn.classList.remove("loading");
+    btn.style.setProperty("--progress", "0%");
+}
 }
 
 // ===== COPY =====
