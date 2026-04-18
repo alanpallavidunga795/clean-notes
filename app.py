@@ -323,7 +323,7 @@ def generate():
 
         output = response.choices[0].message.content
 
-        # 🔥 REAL FIX (STRUCTURE, NOT CONTENT)
+
         output = normalize_output(output)
 
         return jsonify({"result": output})
@@ -363,6 +363,31 @@ def requires_auth(f):
 
 
 # ===== SECURED ADMIN ROUTE =====
+
+@app.route("/reset-db")
+@requires_auth
+def reset_db():
+    if not conn:
+        return "Database not connected"
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                DO $$ DECLARE
+                    r RECORD;
+                BEGIN
+                    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public')
+                    LOOP
+                        EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' RESTART IDENTITY CASCADE';
+                    END LOOP;
+                END $$;
+            """)
+
+        return "Database cleared"
+
+    except Exception as e:
+        return f"Error clearing DB: {e}"
+
 
 @app.route("/admin/users")
 @requires_auth
