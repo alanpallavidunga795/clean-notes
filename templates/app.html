@@ -345,6 +345,15 @@ async function generateOutput() {
     const input = document.getElementById("inputText").value;
     const email = document.getElementById("emailInput").value;
 
+    if (email.trim()) {
+        const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+        if (!valid) {
+        showAlert("Please correct the email address.");
+        return;
+        }
+    }
+
     if (!input.trim()) {
         showAlert("Please enter your clinical notes.");
         return;
