@@ -43,6 +43,12 @@ body {
     font-size: 18px;
 }
 
+@media (max-width: 600px) {
+    .hero h1 {
+        margin-top: 45px;
+    }
+}
+
 .before-after {
     font-size: 20px;
     font-weight: bold;
@@ -244,7 +250,7 @@ You’re an incredibly busy healthcare professional trying to stay efficient whi
 </p>
 
 <p>
-The clock’s ticking—and your clinical notes are <span style="text-transform: uppercase;">STILL</span> not&nbsp;done.
+The clock’s ticking . . . and your clinical notes are <span style="text-transform: uppercase;">STILL</span> not&nbsp;done.
 </p>
 
 <p>
@@ -296,7 +302,7 @@ And each format includes a <strong>Missing Information</strong> section—helpin
 The patient is a 45-year-old male presenting with chest pain that began yesterday. He reports that the pain worsens with movement and does not have a history of cardiac issues. He occasionally smokes and denies experiencing shortness of&nbsp;breath.
 
 <strong>Objective</strong>
-Upon examination, the patient exhibits elevated blood pressure readings. No other vital signs were documented at this time. There are no observable signs of respiratory distress, and the patient appears in moderate discomfort due to the chest&nbsp;pain.
+Upon examination, the patient exhibits elevated blood pressure readings. No other vital signs were documented at this time. There are no observable signs of respiratory distress, and the patient has moderate discomfort due to the chest&nbsp;pain.
 
 <strong>Assessment</strong>
 The clinical presentation of chest pain in this patient, particularly with exacerbation upon movement, raises concerns for musculoskeletal causes or potential cardiac issues, despite the absence of prior cardiac history. The elevated blood pressure may indicate stress or pain-related responses, but further evaluation is necessary to rule out serious conditions such as myocardial infarction or pulmonary&nbsp;issues.
@@ -348,7 +354,7 @@ The patient is a 45-year-old male who presented with a complaint of chest pain t
 <!-- TRUST -->
 <div class="card">
 <p>
-CleanNotes™ is <span style="text-transform: uppercase;">FREE</span> to use. If it saves you time, your support in any amount (via Stripe) will help us enhance CleanNotes™ with ever-smarter&nbsp;features (a clinical-validation layer, specialty modes, a &quot;clinical strictness&quot; slider, and more) that will reduce your work stress even&nbsp;more. Thank you for your generosity!
+Although CleanNotes™ is <span style="text-transform: uppercase;">FREE</span> to use, if it saves you time, your support in any amount (via Stripe) will help us enhance CleanNotes™ with ever-smarter&nbsp;features (a clinical-validation layer, specialty modes, a &quot;clinical strictness&quot; slider, and more) that will reduce your work stress even&nbsp;more. Thank you for your generosity!
 </p>
 
 <p><strong>No account required. No data&nbsp;stored.</strong></p>
@@ -376,19 +382,19 @@ Contact us to provide feedback, suggest features, or explore AI solutions design
 <!-- FOOTNOTE-->
 <div class="card">
 <p style="font-size:13px; color:#5f6c7b;">
-* Speech recognition is browser-based and not fully accurate, so you may need to edit your input. With support from users, we will be able to upgrade this feature significantly to improve&nbsp;accuracy.
+* Speech recognition is browser-based and therefore not fully accurate, so you may need to edit your input. It is not supported by all browsers and works best in Chrome. With continuing contributions from users, we will be able to upgrade this feature to real-time streaming transcription.
 </p>
 <p style="font-size:13px; color:#5f6c7b;">
-*&ast; Various factors, including server traffic and the length and/or complexity of your notes, may impact the actual elapsed time.
+*&ast; Various factors, including server traffic and the length and/or complexity of your notes, may impact the actual processing time.
 </p>
 </div>
 
 </div>
 
-<!-- ✅ LOAD ALERTS FIRST -->
+<!--LOAD ALERTS FIRST -->
 <script src="{{ url_for('static', filename='alerts.js') }}"></script>
 
-<!-- ✅ THEN YOUR LOGIC -->
+<!--NEXT, LOAD LOGIC -->
 <script>
 document.addEventListener("DOMContentLoaded", function () {
 
@@ -401,17 +407,17 @@ document.addEventListener("DOMContentLoaded", function () {
         const message = document.getElementById("message").value.trim();
 
         if (!email && !message) {
-            window.showAlert("Enter your email address and message.");
+            window.showAlert("Please enter your email address and message.");
             return;
         }
 
         if (!email) {
-            window.showAlert("Enter your email address.");
+            window.showAlert("Please enter your email address.");
             return;
         }
 
         if (!message) {
-            window.showAlert("Enter your message.");
+            window.showAlert("Please enter your message.");
             return;
         }
 

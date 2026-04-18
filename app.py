@@ -336,26 +336,28 @@ def requires_auth(f):
 # ===== SECURED ADMIN ROUTE =====
 
 @app.route("/reset-db")
+@requires_auth
 def reset_db():
-    conn = get_db_connection()  # use your existing connection function
-    cur = conn.cursor()
+    if not conn:
+        return "Database not connected"
 
-    cur.execute("""
-        DO $$ DECLARE
-            r RECORD;
-        BEGIN
-            FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public')
-            LOOP
-                EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' RESTART IDENTITY CASCADE';
-            END LOOP;
-        END $$;
-    """)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                DO $$ DECLARE
+                    r RECORD;
+                BEGIN
+                    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public')
+                    LOOP
+                        EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' RESTART IDENTITY CASCADE';
+                    END LOOP;
+                END $$;
+            """)
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        return "Database cleared"
 
-    return "Database cleared"
+    except Exception as e:
+        return f"Error clearing DB: {e}"
 
 @app.route("/admin/users")
 @requires_auth
@@ -366,17 +368,21 @@ def admin_users():
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT email, source, last_used, request_count
-                FROM users
-                ORDER BY last_used DESC NULLS LAST;
+                SELECT 
+                    ROW_NUMBER() OVER (ORDER BY last_used DESC NULLS LAST) AS row_num,
+                    email, 
+                    source, 
+                    last_used, 
+                    request_count
+                FROM users;
             """)
             rows = cur.fetchall()
 
         html = "<h2>Users</h2><table border='1' cellpadding='6'>"
-        html += "<tr><th>Email</th><th>Source</th><th>Last Used</th><th>Requests</th></tr>"
+        html += "<tr><th>#</th><th>Email</th><th>Source</th><th>Last Used</th><th>Requests</th></tr>"
 
         for r in rows:
-            html += f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td></tr>"
+            html += f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td></tr>"
 
         html += "</table>"
         return html
