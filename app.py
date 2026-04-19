@@ -253,6 +253,9 @@ def normalize_output(text):
 def landing():
     return render_template("index.html")
 
+@app.route('/favicon.ico')
+def favicon():
+    return app.send_static_file('favicon.ico')
 
 @app.route("/app")
 def app_page():
