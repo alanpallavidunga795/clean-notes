@@ -219,25 +219,25 @@ button:hover {
 
 .alert {
     position: relative;
-    padding: 12px 40px 12px 16px; /* more right space */
+    padding: 12px 40px 12px 16px;
     border-radius: 8px;
     font-size: 14px;
     opacity: 0;
     transform: translateY(-10px);
     animation: fadeIn 0.3s ease forwards;
-    pointer-events: auto; /* ensure clickable */
+    pointer-events: auto;
 }
 
 .alert-close {
     position: absolute;
     top: 50%;
-    right: 14px; /* moved further right */
+    right: 14px;
     transform: translateY(-50%);
     font-size: 16px;
     cursor: pointer;
     opacity: 0.6;
     user-select: none;
-    z-index: 2; /* ensure it's above */
+    z-index: 2;
 }
 
 .alert-close:hover {
@@ -313,11 +313,9 @@ function showAlert(message, type = "error") {
     const alert = document.createElement("div");
     alert.className = `alert ${type}`;
 
-    // Create message node
     const textNode = document.createElement("span");
     textNode.innerText = message;
 
-    // Create close button
     const closeBtn = document.createElement("span");
     closeBtn.className = "alert-close";
     closeBtn.innerHTML = "&times;";
@@ -378,6 +376,16 @@ async function generateOutput() {
 
         if (!data || !data.result || typeof data.result !== "string") {
             throw new Error("Invalid server response");
+        }
+
+        // 🔴 NEW: HANDLE NON-CLINICAL RESPONSE
+        if (data.result.trim() === "Clinical information is required for appropriate output.") {
+            clearInterval(interval);
+            btn.classList.remove("loading");
+            btn.style.setProperty("--progress", "0%");
+            outputEl.innerHTML = "";
+            showAlert(data.result, "error");
+            return;
         }
 
         clearInterval(interval);

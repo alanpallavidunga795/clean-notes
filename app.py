@@ -8,6 +8,7 @@ import smtplib
 from email.mime.text import MIMEText
 from dotenv import load_dotenv
 from functools import wraps
+import re
 
 load_dotenv()
 
@@ -107,6 +108,29 @@ Message:
         print("Email alert failed:", e)
 
 
+# ===== 🔒 STRICT CLINICAL INPUT FILTER =====
+def is_clinical_input(text):
+    text = text.lower().strip()
+
+    # Require minimum structure
+    if len(text.split()) < 5:
+        return False
+
+    # Must explicitly reference a person/patient
+    if not re.search(r"\b(patient|pt|male|female|man|woman|child)\b", text):
+        return False
+
+    # Must contain a clinical framing verb
+    if not re.search(r"\b(has|reports|presents|complains|with|diagnosed|experiencing)\b", text):
+        return False
+
+    # Must contain a clinical concept
+    if not re.search(r"\b(pain|fever|cough|fatigue|nausea|anxiety|depression|pressure|injury|symptom|infection)\b", text):
+        return False
+
+    return True
+
+
 # ===== PROMPT TEMPLATE (UNCHANGED) =====
 def build_prompt(user_input):
     return f"""
@@ -181,7 +205,6 @@ Write as a paragraph, and list next steps if appropriate.
 
 #### Missing Information:
 Write 3–5 items focusing on diagnostic uncertainties or clinical unknowns.
-These should reflect what a clinician still needs to confirm a diagnosis.
 ---
 ### BULLET SUMMARY
 Extract facts only (one per bullet)
@@ -189,18 +212,12 @@ No interpretation
 
 #### Missing Information:
 Write 3–5 items focusing ONLY on quantifiable, measurable, or documentable data that is absent
-(e.g., vitals, lab values, duration, frequency, scales, test results).
 ---
 ### PARAGRAPH SUMMARY
 Write ONE clean, cohesive paragraph summarizing the case.
 
 #### Missing Information:
-Write 3–5 items focusing on contextual gaps, such as:
-- history
-- environment
-- psychosocial factors
-- timeline clarity
-- prior treatment context
+Write 3–5 items focusing on contextual gaps
 ---
 HARD CONSTRAINTS:
 - DO NOT repeat ideas across "Missing Information" sections
@@ -217,15 +234,12 @@ Return ONLY the formatted output.
 """
 
 
-# ===== CLEAN STRUCTURE FIX (CRITICAL) =====
+# ===== CLEAN STRUCTURE FIX =====
 def normalize_output(text):
     if not text:
         return text
 
-    # Force correct separators (this is the real fix)
     text = text.replace('--------------------------------', '---')
-
-    # Ensure exactly 3 sections
     parts = text.split('---')
 
     if len(parts) >= 3:
@@ -233,40 +247,6 @@ def normalize_output(text):
 
     return text
 
-@app.route("/contact", methods=["POST"])
-def contact():
-
-    data = request.get_json(silent=True)
-
-    if not data:
-        return jsonify({"error": "No JSON received"}), 400
-
-    email = data.get("email", "")
-    message = data.get("message", "")
-
-    if not email or not message.strip():
-        return jsonify({"error": "Missing fields"}), 400
-
-    # ===== DB ENTRY (CONTACT SOURCE) =====
-    if conn:
-        try:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    INSERT INTO users (email, source, last_used, request_count)
-                    VALUES (%s, %s, NOW(), 1)
-                    ON CONFLICT (email)
-                    DO UPDATE SET
-                        last_used = NOW(),
-                        request_count = users.request_count + 1,
-                        source = EXCLUDED.source;
-                """, (email, "contact"))
-        except Exception as e:
-            print("DB contact error:", e)
-
-    # ===== EMAIL ALERT (CONTACT SOURCE) =====
-    send_email_alert("contact", email, message)
-
-    return jsonify({"status": "success"})
 
 # ===== ROUTES =====
 @app.route("/")
@@ -292,6 +272,10 @@ def generate():
 
     if not user_input.strip():
         return jsonify({"error": "No input provided"}), 400
+
+    # 🔒 HARD GATE
+    if not is_clinical_input(user_input):
+        return jsonify({"result": "Clinical information is required for appropriate output."})
 
     # DB
     if conn and user_email != "anonymous":
@@ -322,8 +306,6 @@ def generate():
         )
 
         output = response.choices[0].message.content
-
-
         output = normalize_output(output)
 
         return jsonify({"result": output})
@@ -362,7 +344,6 @@ def requires_auth(f):
     return decorated
 
 
-# ===== SECURED ADMIN ROUTE =====
 @app.route("/admin/users")
 @requires_auth
 def admin_users():
