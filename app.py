@@ -76,8 +76,6 @@ client = OpenAI(api_key=api_key)
 
 # ===== EMAIL ALERT FUNCTION =====
 def send_email_alert(source, email, message):
-    if not email or email == "anonymous":
-        return
 
     sender_email = os.getenv("EMAIL_SENDER")
     sender_password = os.getenv("EMAIL_PASSWORD")
@@ -90,7 +88,7 @@ def send_email_alert(source, email, message):
     msg = MIMEText(f"""
 Type: {source}
 Time: {datetime.now()}
-Email: {email}
+Email: {email if email else "Not provided"}
 
 Message:
 {message}
@@ -108,128 +106,125 @@ Message:
         print("Email alert failed:", e)
 
 
-# ===== 🔒 STRICT CLINICAL INPUT FILTER =====
+# ===== 🔒 SMART CLINICAL INPUT FILTER =====
 def is_clinical_input(text):
     text = text.lower().strip()
 
-    # Require minimum structure
-    if len(text.split()) < 5:
+    # Too short → reject
+    if len(text.split()) < 3:
         return False
 
-    # Must explicitly reference a person/patient
-    if not re.search(r"\b(patient|pt|male|female|man|woman|child)\b", text):
-        return False
+    # Strong clinical keywords
+    clinical_terms = [
+        "pain", "fever", "cough", "fatigue", "nausea", "vomiting",
+        "anxiety", "depression", "injury", "infection", "swelling",
+        "headache", "dizziness", "shortness of breath", "chest pain"
+    ]
 
-    # Must contain a clinical framing verb
-    if not re.search(r"\b(has|reports|presents|complains|with|diagnosed|experiencing)\b", text):
-        return False
+    # Medical context indicators
+    context_terms = [
+        "patient", "pt", "male", "female", "yo", "years old",
+        "history", "hx", "diagnosed", "presents", "reports", "with"
+    ]
 
-    # Must contain a clinical concept
-    if not re.search(r"\b(pain|fever|cough|fatigue|nausea|anxiety|depression|pressure|injury|symptom|infection)\b", text):
-        return False
+    has_clinical = any(term in text for term in clinical_terms)
+    has_context = any(term in text for term in context_terms)
 
-    return True
+    # Accept if BOTH present OR strong clinical density
+    if has_clinical and has_context:
+        return True
+
+    if sum(term in text for term in clinical_terms) >= 2:
+        return True
+
+    return False
 
 
-# ===== PROMPT TEMPLATE (UNCHANGED) =====
+# ===== PROMPT TEMPLATE =====
 def build_prompt(user_input):
     return f"""
 You are a clinical documentation assistant.
 
 Your task is to generate structured clinical documentation from the provided input.
 
-INPUT VALIDATION (MANDATORY FIRST STEP)
+================================
+INPUT VALIDATION (MANDATORY)
+================================
 
-Before generating any output, you MUST first determine whether the input contains clinical information.
+If the input does NOT clearly describe a clinical case:
+RETURN EXACTLY:
+Clinical information is required for appropriate output.
 
-Clinical information is defined as ANY of the following:
-- Symptoms (e.g., pain, fatigue, anxiety)
-- Diagnoses or medical conditions
-- Medications or treatments
-- Vital signs or measurable health data
-- Mental health concerns
-- Clinical observations or patient-reported complaints
+================================
+ZERO-INFERENCE RULE (CRITICAL)
+================================
 
-Non-clinical input includes:
-- Greetings (e.g., "hello") 
-- Random words or phrases
-- General conversation
-- Instructions unrelated to a patient case
+You are strictly prohibited from adding ANY information not explicitly present.
 
-DECISION RULE
-If the input does NOT contain clinical information, you MUST:
-- STOP immediately
-- DO NOT generate any sections
-- DO NOT infer or create a clinical scenario
-- RETURN EXACTLY the following text (without quotation marks):
+DO NOT invent:
+- duration
+- severity
+- frequency
+- progression
+- timeline details
 
-"Clinical information is required for appropriate output."
+If not stated → DO NOT include it.
 
-If the input DOES contain clinical information, proceed with all instructions below.
+Missing details MUST appear ONLY in "Missing Information".
 
-CORE REQUIREMENT (CRITICAL):
-You MUST generate THREE sections, each containing a "Missing Information" subsection.
-
-These three "Missing Information" subsections MUST follow these rules:
-
-1. They MUST be semantically distinct (different angles of missing data).
-2. They MUST NOT reuse wording, phrasing, or sentence structure across sections.
-3. They MUST NOT be paraphrases of each other.
-4. Each list MUST be generated using a different reasoning lens:
-     - SOAP → clinical diagnostic uncertainty
-     - Bullet Summary → objective/measurable missing data
-     - Paragraph Summary → contextual/background gaps
-5. If overlap in concept is unavoidable, you MUST:
-    - Change framing
-    - Change terminology
-    - Change sentence structure
-    - Change level of abstraction
-
-Failure to differentiate these will result in an incorrect output.
-
-OUTPUT STRUCTURE (STRICT)
-Generate EXACTLY three sections in this order:
+================================
+OUTPUT STRUCTURE
+================================
 
 ### SOAP NOTE
 #### Subjective
-Write as a paragraph.
+Paragraph using ONLY given information.
 
 #### Objective
-Write as a paragraph.
+Paragraph using ONLY given information.
 
 #### Assessment
-Write as a paragraph, and provide cautious clinical interpretation.
+Cautious interpretation WITHOUT adding facts.
 
 #### Plan
-Write as a paragraph, and list next steps if appropriate.
+Next steps ONLY if justified.
 
 #### Missing Information:
-Write 3–5 items focusing on diagnostic uncertainties or clinical unknowns.
+3–5 diagnostic uncertainties.
+
 ---
+
 ### BULLET SUMMARY
-Extract facts only (one per bullet)
-No interpretation
+- Facts only
 
 #### Missing Information:
-Write 3–5 items focusing ONLY on quantifiable, measurable, or documentable data that is absent
+3–5 measurable missing data points.
+
 ---
+
 ### PARAGRAPH SUMMARY
-Write ONE clean, cohesive paragraph summarizing the case.
+One clean paragraph.
 
 #### Missing Information:
-Write 3–5 items focusing on contextual gaps
----
-HARD CONSTRAINTS:
-- DO NOT repeat ideas across "Missing Information" sections
-- DO NOT reuse wording or phrasing across sections
-- DO NOT generate templated or generic statements
-- ALL content MUST be derived from the specific input
-- Each section MUST feel independently reasoned
+3–5 contextual gaps.
 
+---
+
+================================
+CONSTRAINTS
+================================
+
+- NO hallucinations
+- NO invented timelines
+- NO assumptions
+- DO NOT add new facts
+- USE ONLY input data
+
+================================
 INPUT:
 {user_input}
 
-OUTPUT RULE:
+OUTPUT:
 Return ONLY the formatted output.
 """
 
@@ -246,6 +241,41 @@ def normalize_output(text):
         return '---'.join([p.strip() for p in parts[:3]])
 
     return text
+
+
+# ===== CONTACT ROUTE =====
+@app.route("/contact", methods=["POST"])
+def contact():
+
+    data = request.get_json(silent=True)
+
+    if not data:
+        return jsonify({"error": "No JSON received"}), 400
+
+    email = data.get("email", "")
+    message = data.get("message", "")
+
+    if not message.strip():
+        return jsonify({"error": "Missing message"}), 400
+
+    if conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO users (email, source, last_used, request_count)
+                    VALUES (%s, %s, NOW(), 1)
+                    ON CONFLICT (email)
+                    DO UPDATE SET
+                        last_used = NOW(),
+                        request_count = users.request_count + 1,
+                        source = EXCLUDED.source;
+                """, (email or "anonymous", "contact"))
+        except Exception as e:
+            print("DB contact error:", e)
+
+    send_email_alert("contact", email, message)
+
+    return jsonify({"status": "success"})
 
 
 # ===== ROUTES =====
@@ -272,11 +302,11 @@ def generate():
     if not user_input.strip():
         return jsonify({"error": "No input provided"}), 400
 
-    # 🔒 HARD GATE
+    send_email_alert("tool", user_email, user_input)
+
     if not is_clinical_input(user_input):
         return jsonify({"result": "Clinical information is required for appropriate output."})
 
-    # DB
     if conn and user_email != "anonymous":
         try:
             with conn.cursor() as cur:
@@ -291,9 +321,6 @@ def generate():
         except Exception as e:
             print("DB error:", e)
 
-    # EMAIL
-    send_email_alert("tool", user_email, user_input)
-
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -301,7 +328,7 @@ def generate():
                 {"role": "system", "content": "Strict clinical formatter."},
                 {"role": "user", "content": build_prompt(user_input)}
             ],
-            temperature=0.3
+            temperature=0.2
         )
 
         output = response.choices[0].message.content
