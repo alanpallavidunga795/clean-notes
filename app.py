@@ -110,18 +110,15 @@ Message:
 def is_clinical_input(text):
     text = text.lower().strip()
 
-    # Too short → reject
     if len(text.split()) < 3:
         return False
 
-    # Strong clinical keywords
     clinical_terms = [
         "pain", "fever", "cough", "fatigue", "nausea", "vomiting",
         "anxiety", "depression", "injury", "infection", "swelling",
         "headache", "dizziness", "shortness of breath", "chest pain"
     ]
 
-    # Medical context indicators
     context_terms = [
         "patient", "pt", "male", "female", "yo", "years old",
         "history", "hx", "diagnosed", "presents", "reports", "with"
@@ -130,7 +127,6 @@ def is_clinical_input(text):
     has_clinical = any(term in text for term in clinical_terms)
     has_context = any(term in text for term in context_terms)
 
-    # Accept if BOTH present OR strong clinical density
     if has_clinical and has_context:
         return True
 
@@ -140,7 +136,7 @@ def is_clinical_input(text):
     return False
 
 
-# ===== PROMPT TEMPLATE =====
+# ===== PROMPT TEMPLATE (FIXED) =====
 def build_prompt(user_input):
     return f"""
 You are a clinical documentation assistant.
@@ -148,10 +144,10 @@ You are a clinical documentation assistant.
 Your task is to generate structured clinical documentation from the provided input.
 
 ================================
-INPUT VALIDATION (MANDATORY)
+INPUT VALIDATION
 ================================
 
-If the input does NOT clearly describe a clinical case:
+If the input is not clearly a clinical case:
 RETURN EXACTLY:
 Clinical information is required for appropriate output.
 
@@ -173,15 +169,41 @@ If not stated → DO NOT include it.
 Missing details MUST appear ONLY in "Missing Information".
 
 ================================
+CRITICAL DIFFERENTIATION RULE
+================================
+
+You MUST generate THREE "Missing Information" sections that are:
+
+- Conceptually distinct
+- Written using different reasoning perspectives
+- Using different wording and structure
+- NOT overlapping in meaning
+- NOT paraphrased versions of each other
+
+Each section MUST use a DIFFERENT lens:
+
+1. SOAP NOTE → Diagnostic uncertainty
+   (What prevents confirming a diagnosis?)
+
+2. BULLET SUMMARY → Measurable data gaps
+   (What quantifiable data is missing?)
+
+3. PARAGRAPH SUMMARY → Contextual gaps
+   (What background or situational info is missing?)
+
+If overlap occurs:
+You MUST reframe the item so it becomes unique.
+
+================================
 OUTPUT STRUCTURE
 ================================
 
 ### SOAP NOTE
 #### Subjective
-Paragraph using ONLY given information.
+Paragraph using ONLY stated information.
 
 #### Objective
-Paragraph using ONLY given information.
+Paragraph using ONLY stated information.
 
 #### Assessment
 Cautious interpretation WITHOUT adding facts.
@@ -190,7 +212,7 @@ Cautious interpretation WITHOUT adding facts.
 Next steps ONLY if justified.
 
 #### Missing Information:
-3–5 diagnostic uncertainties.
+3–5 diagnostic uncertainties required to clarify the case.
 
 ---
 
@@ -198,7 +220,8 @@ Next steps ONLY if justified.
 - Facts only
 
 #### Missing Information:
-3–5 measurable missing data points.
+3–5 measurable or quantifiable missing data points 
+(e.g., vitals, lab values, durations, frequencies).
 
 ---
 
@@ -206,19 +229,21 @@ Next steps ONLY if justified.
 One clean paragraph.
 
 #### Missing Information:
-3–5 contextual gaps.
+3–5 contextual or background gaps 
+(e.g., history, environment, timeline clarity, prior care).
 
 ---
 
 ================================
-CONSTRAINTS
+HARD CONSTRAINTS
 ================================
 
 - NO hallucinations
 - NO invented timelines
 - NO assumptions
 - DO NOT add new facts
-- USE ONLY input data
+- DO NOT reuse or reword items across sections
+- EACH section must feel independently reasoned
 
 ================================
 INPUT:
